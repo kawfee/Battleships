@@ -36,7 +36,7 @@ to make a new AI and compete against other Battleship AI.
 ---
 
 ### To install the battleships project:
-- Download this repo to a Linux computer (matt, lab machine, or personal).
+- Download this repo to a relatively recent Linux computer (at Taylor University: matt, lab machine, or personal).
 - `cd` into the main project directory.
 - Run `make all` to make the controller code and all players.
     - You should only need to do this once, or after a `make clean`.
@@ -52,8 +52,9 @@ to make a new AI and compete against other Battleship AI.
 ### Runtime Questions:
 - `Test AI` -- Plays a match between two AI (you must choose the AI to play).
     - Use this in the development of your AI.
-- `Run Contest` -- Plays a contest between all available AI.
-    - More than likely, you won't have to use this unless you are Dr. Brandle.
+- `Run Contest` -- Plays a contest between all available AIs.
+    - Use this when hosting a contest.
+    - Can choose interactively which AIs will participate.
 - `Replay Logs` -- Replays a log file for you.
     - Replays log files from either the last match or contest played.
 
@@ -87,16 +88,16 @@ to make a new AI and compete against other Battleship AI.
     - `MISS` - Returned by `shot_return` when `WATER` was shot at. Store it to not shoot there again.
     - `HIT` - Returned by `shot_return` when a `SHIP` was shot at. Store it to shoot by it but not there again.
     - `KILL` - Only used to store where a `SHIP` was killed.
-    - Duplicates - Returned by `shot_return` when a shot was made at the same location two or more times. You should limit your AI from doing this.
+    - Duplicates - Returned by `shot_return` when a shot was made at the same location two or more times. You should prevent your AI from doing duplicate shots.
 
 
 ## Error Codes and potential issues:
 ---
 
 - Error Codes **1-7**:
-    - Run it on linux (lab machine, matt, or a personal install).
+    - Run it on linux (TU: lab machine, matt, or a personal install).
     - Run `make clean`, then `make all`.
-    - Contact me on the CSE slack @ mattgetgen.
+    - TU: Contact me on the CSE slack @ mattgetgen.
 - Error Codes **8-11**:
     - Your AI may have exited early, segfaulted, or is in an infinite loop.
 - Error Code **12**: (Invalid Ship)
@@ -107,7 +108,7 @@ to make a new AI and compete against other Battleship AI.
 - Error Code **13**: (Invalid Shot)
     - Your AI may have placed a shot off of the board.
 
-> If you are still having an issue, contact me on the CSE slack @ mattgetgen
+> TU: If you are still having an issue, contact me on the CSE slack @ mattgetgen
 
 
 ## Debugging an AI:
@@ -144,7 +145,7 @@ There is a debug mode for the controller that disables message timeouts. This ca
 
 ### For a language to be compatible with this project, it must:
 - Support JSON and Unix Domain Sockets.
-- Be either compiled to an executable, or made an executable.
+- Be either compiled to an executable, or made executable with Unix permissions.
     - Python usually requires `python3 player_example.py` at the command line to run, but if you make it an executable, and add the `#!/usr/bin/python3` shebang at the top of the file, it can be executed at the command line without using `python3`.
     - A similar workaround for other interpreted languages might need to be found.
 
