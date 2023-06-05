@@ -1,5 +1,5 @@
 # Battleships Contest
-#### _By Matthew Getgen and Joey Gorski_
+#### _By Matthew Getgen, Joey Gorski, Matthew Bouch, and Stefan Brandle_
 ***
 
 This project's goal is to handle a Battleships Contest between AIs through JSON messages and Unix Domain Sockets.
