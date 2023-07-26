@@ -1,6 +1,6 @@
 CXX = g++
 CXXFLAGS = -Wall -Wextra
-PLAYER_FLAGS = -g $(CXXFLAGS)
+PLAYER_FLAGS = -g -static $(CXXFLAGS)
 PROTECT_DIR = protected/
 
 PLAYER_SRC = $(PROTECT_DIR)Player.cpp
