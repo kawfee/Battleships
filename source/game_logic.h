@@ -35,7 +35,7 @@
  * @param connect connection data structure of the socket.
  * @param socket_name socket name for players to connect to.
  * @param execs vector of players in the contest.
- * @param contest_log Conteset JSON to store contest values into.
+ * @param contest_log Contest JSON to store contest values into.
  * @param delay delay of time between actions during display.
  * @param display_now whether to display games now (true) or after (false).
  */
@@ -105,7 +105,7 @@ Match run_match(int board_size, int num_games, Connection connect, string socket
  * @param msg2 message buffer for player 2.
  * @param num_ships number of ships for the game to use.
  * @param max_ship_len greatest size of a ship for the board size.
- * @param min_ship_len smallest sizse of a ship for the board size.
+ * @param min_ship_len smallest size of a ship for the board size.
  * @return 0 if all is good, -1 if player1 failed, -2 if player2 failed, -3 if both failed.
  */
 int run_game(Match *match, json &game_log, Connection *connect, Board &boards, char *msg1, char *msg2, int num_ships, int max_ship_len, int min_ship_len);
@@ -131,7 +131,7 @@ int run_game(Match *match, json &game_log, Connection *connect, Board &boards, c
 int handle_ship_placement(Match *match, json &game_log, Connection *connect, Board &boards, char *msg1, char *msg2, Ship &ship1, Ship &ship2, int ship_length);
 
 /**
- * @brief Checkes player ship placement and makes sure it is valid (on board and not already taken).
+ * @brief Checks player ship placement and makes sure it is valid (on board and not already taken).
  * @param board board of player to check ships on.
  * @param board_size size of the board.
  * @param ship ship data structure to check on board.

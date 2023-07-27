@@ -14,7 +14,7 @@
 #include "defines.h"
 
 /**
- * @brief Message Types that are sent and received. Numbered in order of their occurence.
+ * @brief Message Types that are sent and received. Numbered in order of their occurrence.
  */
 enum MessageType {
     // SERVER MESSAGE TYPES -- used by the server to create messages, used by the client to parse messages

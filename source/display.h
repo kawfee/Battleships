@@ -77,7 +77,7 @@ int get_ai_num_by_idx(vector<ContestPlayer> &players, int idx);
 void store_match_player_values(ContestPlayer &player, json &contest_player);
 
 /**
- * @brief Displays the Leaderboard for a contest.
+ * @brief Displays the leaderboard for a contest.
  * @param players set of all players in the contest.
  * @param show_all If true, displays all players. Otherwise, display the Top 10.
  */
@@ -282,7 +282,7 @@ void display_shot_value(int board_size, PlayerNum player, Shot &shot);
 /**
  * @brief Displays a ship based on it's value.
  * @param player number for the player (1 or 2).
- * @param ship ship structure to diplay.
+ * @param ship ship structure to display.
  * @param value value of the ship (either SHIP or KILL).
  */
 void display_ship(PlayerNum player, Ship &ship, BoardValue value);

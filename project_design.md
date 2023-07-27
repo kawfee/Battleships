@@ -154,8 +154,8 @@ Look to the [message protocol](#message-communication-protocol) section for the 
     - For any of these contest types:
         - Ask for board size (3-10)
         - Ask for number of games (500 is standard)
-        - (dont display any games, just results)
-    - If Bracket-Stype:
+        - (don't display any games, just results)
+    - If Bracket-Style:
         - present bracket in a beautified way
 - If Replay Log:
     - Give list of log files (latest contest or latest match)
