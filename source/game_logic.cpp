@@ -893,7 +893,7 @@ void calculate_winner(Match *match, json &game_log, vector<Ship> &ships1, vector
 
 void send_game_over_messages(Connection *connect, char *msg) {
     create_game_over_msg(msg);
-    // at this point, checking return values doen't matter.
+    // at this point, checking return values doesn't matter.
 
     // send game_over message
     send_message(connect->player1_desc, msg);

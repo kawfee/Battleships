@@ -152,7 +152,7 @@ class PlayerExample(Player):
 
 def main():
     if len(sys.argv) != 2:
-        print_error("Requres socket name!", LINE())
+        print_error("Requires socket name!", LINE())
         return
     socket_path = sys.argv[1]
 
