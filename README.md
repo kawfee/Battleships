@@ -134,8 +134,8 @@ There is a debug mode for the controller that disables message timeouts. This ca
 
 ### For a language to be compatible with this project, it must:
 - Support JSON and Unix Domain Sockets for the protocol.
-- Be either compiled to an executable, or interpreted with an executablle workaround.
-    - Python usually requires `python3 player_example.py` at the command line to run, but if you make it an executable, and add the `#!/usr/bin/python3` shebang at the top of the file, it can be executed at the command line without using `python3`. A similar approach is available for node/js.
+- Be either compiled to an executable, or interpreted with a command line "executable-like" workaround.
+    - Python usually requires `python3 player_example.py` at the command line to run, but if you chmod the file to give it executable permissions, and add an `#!/usr/bin/python3` or similar shebang at the top of the file, it can be executed at the command line without having to put `python3` before the filename. A similar approach is available for node/js.
 
 ### For an AI to be compatible with this project, it must:
 - Accept the socket file path as the first program argument.
