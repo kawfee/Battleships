@@ -13,7 +13,7 @@ Because the protocol is handled at the `Player.cpp`/`Player.py` level, the effec
 Protocol Restraints:
 - The messages are sent over a [Unix Domain Socket](https://en.wikipedia.org/wiki/Unix_domain_socket) (`AF_UNIX`) using the `SOCK_STREAM` type.
 - The messages are sent as C-style strings (null terminated).
-- The messages are JSON with specific values depending on the type of messsage.
+- The messages are JSON with specific values depending on the type of message.
 
 ### Message Types:
 
@@ -62,7 +62,7 @@ Here are the messages and what they mean:
 - "au" = author name(s)
 - "bs" = board size
 - "pn" = player number
-    - The only valid values are either 1 or 2, depending on what plaer you are.
+    - The only valid values are either 1 or 2, depending on what player you are.
 - "l" = ship length
 - "r" = ship/shot row
 - "c" = ship/shot column

@@ -108,7 +108,7 @@ void display_game(DisplayInfo &info, GameLog &game, Board &board);
 /// @param board Board struct to store with and display.
 void step_through_game(DisplayInfo &info, StepThroughInfo &step_info, GameLog &game, Board &board);
 
-/// @brief Process the key press and what happends as a result.
+/// @brief Process the key press and what happens as a result.
 /// @param step_info Info about the step logic.
 /// @param key Key pressed by user.
 /// @return true if key press changed the game state, false if not.
@@ -200,7 +200,7 @@ void display_game_results_and_errors(DisplayInfo &info, GameLog &game);
 /// @param player player number for player that is being displayed.
 void display_game_result(DisplayInfo &info, GameResult result, PlayerNum player);
 
-/// @brief Displays an error message from an error that occcurs during a game.
+/// @brief Displays an error message from an error that occurs during a game.
 /// @param info Display info for how to display.
 /// @param error ErrorType to display a message for.
 /// @param col_offset Offset of the board the player's board is on.

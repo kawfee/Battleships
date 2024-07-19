@@ -152,7 +152,7 @@ There is a debug mode for the controller that disables message timeouts. This ca
         - `hello`
         - `ship_placed`
         - `shot_taken`
-    - Recieve and process messages sent from the server:
+    - Receive and process messages sent from the server:
         - `setup_match`
         - `start_game`
         - `place_ship`

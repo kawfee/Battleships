@@ -11,8 +11,8 @@
 // Write your AI's name here. Please don't make it more than 64 bytes.
 #define AI_NAME "Player Example C++"
 
-// Write your name(s) here. Please don't make it more than 64 bytes.
-#define AUTHOR_NAMES "Mamthew Gemchin & Goey Jorski"
+// Write your name(s) or team name here. Please don't make it more than 64 bytes.
+#define AUTHOR_NAMES "Example Team/Author Name"
 
 
 int main(int argc, char *argv[]) {

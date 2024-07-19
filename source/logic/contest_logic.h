@@ -46,7 +46,7 @@ void append_alive_players_to_round(vector<ContestPlayer> &players, vector<Contes
 
 /// @brief Manages a single round of a contest. Also manages displaying round info if applicable.
 /// @param contest ContestLog struct to store round data to.
-/// @param round_players ContestMatchPlayer list calculated by appen_alive_players_to_round.
+/// @param round_players ContestMatchPlayer list calculated by append_alive_players_to_round.
 /// @param connect Connection struct to use throughout contest.
 /// @param options Options to use during contest.
 /// @param socket_name Name of socket to connect over.
@@ -72,7 +72,7 @@ void collect_contest_player_stats(ContestPlayer &c_player, ContestMatchPlayer &m
 void handle_contest_match(ContestMatch &c_match, Connection &connect, ContestOptions &contest_options, const char *socket_name);
 
 /// @brief Collects all stats and errors from a match player into a contest match player.
-/// @param c_player ContestMatchPlayer struct to store valiues into.
+/// @param c_player ContestMatchPlayer struct to store values into.
 /// @param m_player MatchPlayer struct to get values from.
 void collect_match_player_stats(ContestMatchPlayer &c_player, MatchPlayer &m_player);
 

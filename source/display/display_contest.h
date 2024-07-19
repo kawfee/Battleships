@@ -110,7 +110,7 @@ void display_contest_match_vs(DisplayInfo &info, string name1, string name2);
 
 /// @brief Prints the name of the player's name that won, or a tie if a tie. 
 /// @param player1_result Result of the game for player 1. All you need to determine the result.
-/// @param p1_name Nmae of player1.
+/// @param p1_name Name of player1.
 /// @param p2_name Name of player2.
 string print_contest_match_by_result(GameResult player1_result, string p1_name, string p2_name);
 

@@ -94,7 +94,7 @@ int get_num_games(int &row, json &j_options);
 
 /// @brief Gets the match display type from the user or options.
 /// @param row Row to display the question at.
-/// @param j_options Options JSON struct to get the default optons from.
+/// @param j_options Options JSON struct to get the default options from.
 /// @return display type from input.
 MatchDisplayType get_match_display_type(int &row, json &j_options);
 
@@ -145,7 +145,7 @@ ContestOptions get_contest_replay_options(int &row, const string &system_dir, js
 /// @return ContestDisplayType from input.
 ContestDisplayType get_contest_display_type(int &row, json &j_options);
 
-/// @brief Asks if a aplayer should be removed from a contest.
+/// @brief Asks if a player should be removed from a contest.
 /// @param row Row to display question at.
 /// @param execs List of executables to remove players from if necessary.
 void ask_to_remove_player(int &row, vector<Executable> &execs);

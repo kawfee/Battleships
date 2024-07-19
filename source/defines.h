@@ -23,7 +23,7 @@
 #define MAX_MSG_SIZE 256
 #define MAX_NAME_SIZE 64
 
-// JSON MESSAGE KEYS -- used by the client and server to create and parse messages
+/// JSON MESSAGE KEYS -- used by the client and server to create and parse messages
 #define MESSAGE_TYPE_KEY    "mt"
 #define PLAYER_NUM_KEY      "pn"
 #define AI_NAME_KEY         "ai"    // also used by the logger
@@ -46,7 +46,7 @@
 #define NUM_DUPLICATES_KEY  "nd"    // also used by the logger
 #define SHIPS_KILLED_KEY    "sk"    // also used by the logger
 
-// JSON LOGGER KEYS -- used by the logger to store values in log
+/// JSON LOGGER KEYS -- used by the logger to store values in log
 #define ELAPSED_TIME_KEY    "et"
 #define WINS_KEY            "W"
 #define LOSSES_KEY          "L"
@@ -72,7 +72,7 @@
 
 using namespace std;
 
-// SERVER ERROR MESSAGES
+/// SERVER ERROR MESSAGES
 const string 
     SOCKET_CREATE_ERR   = "Socket creation failed!",
     SOCKET_NAME_ERR     = "Socket pathname is too long!",
@@ -84,13 +84,13 @@ const string
     SEND_MESSAGE_ERR    = "Failed to send to player!",
     RECV_MESSAGE_ERR    = "Failed to receive from player!";
 
-// MESSAGE ERROR MESSAGES
+/// MESSAGE ERROR MESSAGES
 const string
     HELLO_MESSAGE_ERR   = "Invalid hello msg from player!",
     SHIP_MESSAGE_ERR    = "Invalid ship msg from player!",
     SHOT_MESSAGE_ERR    = "Invalid shot msg from player!";
 
-// LOGIC ERROR MESSAGES
+/// LOGIC ERROR MESSAGES
 const string
     BOARD_SIZE_ERR = "Unhandled board size!", // not an ErrorType, never returned
     SHIP_PLACE_ERR = "Invalid ship from player!",
@@ -125,7 +125,7 @@ enum BoardValue : char {
     HIT = 'X',
     MISS = '*',
     KILL = 'K',
-    // NOTE: these duplicate values are set for backwards-compatability.
+    // NOTE: these duplicate values are set for backwards-compatibility.
     DUPLICATE_HIT = 34,
     DUPLICATE_MISS = 35,
     DUPLICATE_KILL = 36,

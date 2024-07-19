@@ -31,7 +31,7 @@ struct Board {
 Board create_boards(int size);
 
 /// @brief Clears the boards. Needed between each game.
-/// @param board board strucct to clear.
+/// @param board board struct to clear.
 void clear_boards(Board &board);
 
 /// @brief Deletes the boards. Useful for cleaning up the memory.

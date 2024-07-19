@@ -7,8 +7,8 @@ from protected.Player import *
 # Write your AI's name here. Please don't make it more than 64 characters.
 AI_NAME = "Player Example Python"
 
-# Write your name(s) here. Please don't make it more than 64 characters.
-AUTHOR_NAMES = "Mamthew Gemchin & Goey Jorski"
+# Write your name(s) or team name here. Please don't make it more than 64 characters.
+AUTHOR_NAMES = "Example Team/Author Name"
 
 
 class PlayerExample(Player):
