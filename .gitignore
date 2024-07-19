@@ -1,0 +1,19 @@
+# random directories
+.vscode/
+.obsidian/
+
+# project directories
+ai_files/
+!ai_files/protected/
+logs/
+__pycache__/
+callgrind/
+
+# project binaries
+*.o
+controller
+
+# project files
+options.json
+
+log.txt

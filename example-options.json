@@ -1,0 +1,54 @@
+{
+    "runtime": {
+        "options": ["0", "1", "2", "3"],
+        "choice": "0"
+    },
+    "match": {
+        "board_size": {
+            "option_range": "3 - 10",
+            "choice": "10"
+        },
+        "games_per_match": {
+            "option_range": "0 - 10000",
+            "choice": "500"
+        },
+        "display_type": {
+            "options": ["0", "1", "2", "3", "4", "5"],
+            "choice": "0"
+        },
+        "step_through": {
+            "options": ["y", "n"],
+            "choice": "n"
+        },
+        "delay_time": {
+            "option_range": "0.0 - 100.0",
+            "choice": "0.3"
+        },
+        "player_1": {
+            "option_range": "0 - number of available AI",
+            "choice": "0"
+        },
+        "player_2": {
+            "option_range": "0 - number of available AI",
+            "choice": ""
+        }
+    },
+    "contest": {
+        "board_size": {
+            "option_range": "3 - 10",
+            "choice": "10"
+        },
+        "games_per_match": {
+            "option_range": "0 - 10000",
+            "choice": "500"
+        },
+        "display_type": {
+            "options": ["0", "1", "2"],
+            "choice": "0"
+        },
+        "delay_time": {
+            "option_range": "0.0 - 100.0",
+            "choice": "0.3"
+        }
+    }
+}
