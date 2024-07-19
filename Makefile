@@ -6,7 +6,7 @@
 CXX = g++
 PLAYER_CXXFLAGS = -g -static -Wall -Wextra
 RELEASE_CXXFLAGS = -static -Wall -Wextra -O3
-DEBUG_CXXFLAGS = -g $(RELEASE_CXXFLAGS)
+DEBUG_CXXFLAGS = -g $(RELEASE_CXXFLAGS) -Werror
 
 # source directory info
 src_dir = source/
