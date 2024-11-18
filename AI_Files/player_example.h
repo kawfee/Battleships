@@ -82,6 +82,9 @@ class PlayerExample: public Player {
         /// @brief Defines the size of the board for the match.
         int board_size;
 
+        /// @brief Tracks the number of ships placed so far.
+        int num_ships_placed;
+
         /// @brief Stores the board where you placed ships, and where the opponent has shot.
         char** ship_board;
 

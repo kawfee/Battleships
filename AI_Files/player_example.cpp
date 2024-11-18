@@ -60,6 +60,7 @@ void PlayerExample::handle_setup_match(PlayerNum player, int board_size) {
  *================================================================================*/
 void PlayerExample::handle_start_game() {
     clear_boards();
+    num_ships_placed = 0;
     return;
 }
 
@@ -74,33 +75,14 @@ void PlayerExample::handle_start_game() {
  *================================================================================*/
 Ship PlayerExample::choose_ship_place(int ship_length) {
     Ship ship;
+
     ship.len = ship_length;
-    ship.row = 0;
+    ship.row = num_ships_placed;
     ship.col = 0;
     ship.dir = HORIZONTAL;
-    bool ship_okay = false;
 
-    for (int row = 0; row < this->board_size; row++) {
-        for (int col = 0; col < this->board_size-(ship.len-1); col++) {
-            if ( this->ship_board[row][col] == WATER ) {
-                ship_okay = true;
-                for (int len = 0; len < ship.len; len++) {
-                    if ( this->ship_board[row][col+len] != WATER ) {
-                        ship_okay = false;
-                        break;
-                    }
-                }
-                if (ship_okay) {
-                    for (int len = 0; len < ship.len; len++) {
-                        this->ship_board[row][col+len] = SHIP;
-                    }
-                    ship.row = row;
-                    ship.col = col;
-                    return ship;
-                }
-            }
-        }
-    }
+    num_ships_placed++;
+
     return ship;
 }
 
