@@ -1,223 +1,355 @@
 /**
  * @file defines.h
  * @author Matthew Getgen
- * @brief Battleships Common Value Definitions
- * @date 2022-05-16
+ * @brief Battleships Common Definitions.
+ * @date 2023-08-27
  */
 
-#ifndef DEFINES_H
-#define DEFINES_H
+ #ifndef DEFINES_H
+ #define DEFINES_H
 
 #include <iostream>
 #include <string>
+#include <vector>
+#include <assert.h>
 
-#include "json.hpp"
-
-#define LOGS_DIR "/logs/"
-#define MATCH_LOG "match_log.json"
-#define CONTEST_LOG "contest_log.json"
+#define EXEC_DIR        "/ai_files/"
+#define PROTECT_DIR     "/protected/"
+#define SOCKET_NAME     "/battleships.socket"
+#define LOGS_DIR        "/logs/"
+#define MATCH_LOG       "/match_log.json"
+#define CONTEST_LOG     "/contest_log.json"
+#define OPTIONS_FILE    "/options.json"
 
 #define MAX_MSG_SIZE 256
 #define MAX_NAME_SIZE 64
+#define MAX_LIVES 3
+#define MIN_LIVES 0
+#define MAX_BOARD_SIZE 10
+#define MIN_BOARD_SIZE 3
 
-// JSON MESSAGE KEYS -- used by the client and server to create and parse messages
+/// JSON MESSAGE KEYS -- used by the client & server to create & parse messages
 #define MESSAGE_TYPE_KEY    "mt"
 #define PLAYER_NUM_KEY      "pn"
 #define AI_NAME_KEY         "ai"    // also used by the logger
 #define AUTHOR_NAMES_KEY    "au"    // also used by the logger
 #define BOARD_SIZE_KEY      "bs"    // also used by the logger
-#define LEN_KEY             "l"     // also used by the logger
-#define ROW_KEY             "r"     // also used by the logger
-#define COL_KEY             "c"     // also used by the logger
-#define DIR_KEY             "d"     // also used by the logger
-#define VALUE_KEY           "v"     // also used by the logger
-#define OUTCOME_KEY         "o"     // also used by the logger
+#define LEN_KEY             "l"
+#define ROW_KEY             "r"
+#define COL_KEY             "c"
+#define DIR_KEY             "d"
+#define VALUE_KEY           "v"
+#define PLAYER_1_KEY        "p1"    // also used by the logger
+#define PLAYER_2_KEY        "p2"    // also used by the logger
+#define SHIP_KEY            "sp"
+#define SHOT_KEY            "st"
+#define NEXT_SHOT_KEY       "ns"
+#define GAME_RESULT_KEY     "gr"    // also used by the logger
+#define NUM_BOARD_SHOT_KEY  "nb"    // also used by the logger
+#define NUM_HITS_KEY        "nh"    // also used by the logger
+#define NUM_MISSES_KEY      "nm"    // also used by the logger
+#define NUM_DUPLICATES_KEY  "nd"    // also used by the logger
+#define SHIPS_KILLED_KEY    "sk"    // also used by the logger
 
-// JSON LOGGER KEYS -- used by the logger to store values in log
-#define PLAYERS_KEY         "pls"
-#define PLAYER_IDX_KEY      "pid"
-#define TOTAL_WINS_KEY      "tw"
-#define TOTAL_LOSSES_KEY    "tl"
-#define TOTAL_TIES_KEY      "tt"
-#define MATCHES_KEY         "mts"
-#define LIVES_KEY           "lvs"
-#define LAST_GAME_KEY       "lg"
+/// JSON LOGGER KEYS -- used by the logger to store values in log
 #define ELAPSED_TIME_KEY    "et"
-#define PLAYER_1_KEY        "p1"
-#define PLAYER_2_KEY        "p2"
 #define WINS_KEY            "W"
 #define LOSSES_KEY          "L"
 #define TIES_KEY            "T"
-#define ERROR_KEY           "e"
+#define ERROR_KEY           "err"
+#define ERROR_TYPE_KEY      "ert"
+#define MESSAGE_KEY         "msg"
+#define PLAYERS_KEY         "pls"
+#define PLAYER_IDX_KEY      "pid"
+#define TOTAL_WINS_KEY      "TW"
+#define TOTAL_LOSSES_KEY    "TL"
+#define TOTAL_TIES_KEY      "TT"
+#define ROUNDS_KEY          "rds"
+#define MATCHES_KEY         "mts"
+#define LIVES_KEY           "liv"
+#define LAST_GAME_KEY       "lg"
 #define GAMES_KEY           "gms"
 #define SHIPS_KEY           "sps"
 #define SHOTS_KEY           "sts"
-#define INDEX_SHIP_KEY      "sid"
-
-// SERVER ERRORS
-#define SOCKET_CREATE_ERR   "Socket creation failed!"
-#define SOCKET_NAME_ERR     "Socket pathname is too long!"
-#define SOCKET_BIND_ERR     "Socket binding failed!"
-#define SOCKET_OPT_ERR      "Socket option settings failed!"
-#define PLAYER_EXEC_ERR     "Player executable failed to run!"   // not an error_num, never returned
-#define PLAYER_FORK_ERR     "Process creation failed!"
-#define SOCKET_CONNECT_ERR  "Connection failed!"
-#define SEND_MESSAGE_ERR    "Message failed to send!"
-#define RECV_MESSAGE_ERR    "No message received!"
-
-// MESSAGE ERRORS
-#define HELLO_MSG_ERR       "Invalid hello message!"
-#define SHIP_MSG_ERR        "Invalid ship_placed message!"
-#define SHOT_MSG_ERR        "Invalid shot_taken message!"
-
-// GAME LOGIC ERRORS
-#define BOARD_SIZE_ERR      "Unhandled board size!"  // not an error_num, never returned
-#define SHIP_PLACE_ERR      "Invalid ship returned!"
-#define SHOT_PLACE_ERR      "Invalid shot returned!"
+#define STATS_KEY           "sta"
+#define PLAYED_KEY          "pd"
+#define BYE_IDX_KEY         "bye"
 
 using namespace std;
-using json = nlohmann::json;
 
-/**
- * @brief Error Number Types for returning from functions.
- */
-enum ErrorNum {
-    NO_ERR, BAD_SOCK_CREATE, BAD_SOCK_NAME, BAD_SOCK_BIND, BAD_SOCK_OPT, 
-    BAD_FORK, BAD_CONNECT, BAD_SEND, BAD_RECV, 
-    BAD_HELLO_MSG, BAD_SHIP_PLACED_MSG, BAD_SHOT_TAKEN_MSG,
-    BAD_SHIP, BAD_SHOT,
+/// SERVER ERROR MESSAGES
+const string 
+    SOCKET_CREATE_ERR   = "Socket creation failed!",
+    SOCKET_NAME_ERR     = "Socket pathname is too long!",
+    SOCKET_BIND_ERR     = "Socket binding failed!",
+    SOCKET_OPT_ERR      = "Socket option settings failed!",
+    PLAYER_FORK_ERR     = "Player process creation failed!",
+    PLAYER_EXEC_ERR     = "Player executable failed to run!",
+    SOCKET_CONNECT_ERR  = "Connection to player failed!",
+    SEND_MESSAGE_ERR    = "Failed to send to player!",
+    RECV_MESSAGE_ERR    = "Failed to receive from player!";
+
+/// MESSAGE ERROR MESSAGES
+const string
+    HELLO_MESSAGE_ERR   = "Invalid hello msg from player!",
+    SHIP_MESSAGE_ERR    = "Invalid ship msg from player!",
+    SHOT_MESSAGE_ERR    = "Invalid shot msg from player!";
+
+/// LOGIC ERROR MESSAGES
+const string
+    BOARD_SIZE_ERR = "Unhandled board size!", // not an ErrorType, never returned
+    SHIP_PLACE_ERR = "Invalid ship from player!",
+    SHOT_PLACE_ERR = "Invalid shot from player!";
+
+
+/// @brief Error Number Types for function return values.
+enum ErrorType {
+    OK,
+    // SERVER ERROR TYPES
+    ErrFork, ErrConnect, ErrSend, ErrReceive,
+    // MESSAGE ERROR TYPES
+    ErrHelloMessage, ErrShipPlacedMessage, ErrShotTakenMessage,
+    // LOGIC ERROR TYPES
+    ErrShipLength, ErrShipOffBoard, ErrShipIntersect, ErrShotOffBoard,
 };
 
-/**
- * @brief number value for different players.
- */
+/// @brief Number value for different players. This value is passed to
+/// the player through start match message. This is important when
+/// passing messages.
 enum PlayerNum {
     PLAYER_1 = 1, PLAYER_2 = 2,
 };
 
-/**
- * @brief possible direction of a ship.
- */
+/// @brief Possible direction for a ship.
 enum Direction : char {
     HORIZONTAL = 'H', VERTICAL = 'V',
 };
 
-/**
- * @brief possible results of a shot made.
- */
+/// @brief Possible results of a shot made.
 enum BoardValue : char {
-    WATER = '~', SHIP = 'S', HIT = 'X', MISS = '*', KILL = 'K', DUPLICATE = '!', DUPLICATE_HIT, DUPLICATE_MISS, DUPLICATE_KILL,
+    WATER = '~',
+    SHIP = 'S',
+    HIT = 'X',
+    MISS = '*',
+    KILL = 'K',
+    // NOTE: these duplicate values are set for backwards-compatibility.
+    DUPLICATE_HIT = 34,
+    DUPLICATE_MISS = 35,
+    DUPLICATE_KILL = 36,
 };
 
-/**
- * @brief possible results of a game.
- */
+/// @brief Executable values. One is for display, the other is the
+/// full path to the executable.
+struct Executable {
+    string file_name;
+    string exec;
+};
+
+/// @brief Type of display for a match chosen by user.
+enum MatchDisplayType {
+    /// @brief Display the last game (default). Also the option used to
+    /// display contest matches.
+    LAST,
+    /// @brief Display every. single. game. (bad).
+    ALL,
+    /// @brief Display the last of every Win, Loss, Tie, Error.
+    EACH_TYPE,
+    /// @brief Display games at a constant increment.
+    INCREMENT,
+    /// @brief Display a given game by number.
+    CHOICE,
+    /// @brief Only display match stats.
+    NONE,
+};
+
+/// @brief Type of display for a contest chosen by a user.
+enum ContestDisplayType {
+    /// @brief Displays all matches, rounds, and final.
+    NORMAL,
+    /// @brief Displays only rounds and final.
+    ROUNDS,
+    /// @brief Only display the final.
+    FINAL,
+};
+
+/// @brief The runtime options available.
+enum Runtime {
+    RunMatch,
+    RunContest,
+    ReplayMatch,
+    ReplayContest,
+};
+
+/// @brief Options for a match chosen by a user at runtime.
+struct MatchOptions {
+    int board_size;
+    int num_games;
+    int delay_time;
+    bool step_through;
+    MatchDisplayType display_type;
+    Executable exec1;
+    Executable exec2;
+};
+
+/// @brief Options for a contest chosen by a user at runtime.
+struct ContestOptions {
+    int board_size;
+    int num_games;
+    int delay_time;
+    ContestDisplayType display_type;
+    vector<Executable> execs;
+};
+
+/// @brief All options for each runtime type.
+struct Options {
+    Runtime runtime;
+    MatchOptions match_options;
+    ContestOptions contest_options;
+    // ReplayOptions replay_options;
+};
+
+/// @brief Possible result of a game.
 enum GameResult : char {
     WIN = 'W', LOSS = 'L', TIE = 'T',
 };
 
-/**
- * @brief Type of display chosen by the user.
- */
-enum DisplayType {
-    /// @brief Don't display the Match or Contest.
-    NONE,
-    /// @brief Display every. single. game.
-    ALL,
-    /// @brief Display the last game. Default for Match, the only way to do it for Contest.
-    LAST,
-    /// @brief Display each different type if available (WIN, LOSS, TIE, or an ERROR).
-    EACH,
-    /// @brief Display every Nth game in order.
-    INCREMENT,
-    /// @brief Contest Display type. Display each match as it's running the contest.
-    DURING,
-    /// @brief Contest Display type. Display each match after the entire contest has been processed.
-    AFTER,
-};
-
-/**
- * @brief A structure used to store ship_placed message info.
- */
+/// @brief Struct used to store ship info.
 struct Ship {
-    int len;
-    int row;
-    int col;
+    int8_t row;
+    int8_t col;
+    int8_t len;
+    bool alive;
     Direction dir;
 };
 
-/**
- * @brief A structure used to store shot_taken message info.
- */
+/// @brief Struct used to store shot info.
 struct Shot {
-    int row;
-    int col;
+    int8_t row;
+    int8_t col;
+    int8_t ship_sunk_idx;  // NOTE: Optional value used only by logs.
     BoardValue value;
 };
 
-/**
- * @brief Data about the boards and the size of the boards.
- */
-struct Board {
-    char **board1;
-    char **board2;
-    int size;
+/// @brief Struct used to store information about all game errors.
+struct Error {
+    ErrorType type;
+    Ship ship;
+    Shot shot;
+    string message;
 };
 
-/**
- * @brief Data to store about each player for the contest.
- */
-struct ContestPlayer {
-    string exec;
-    char ai_name[MAX_NAME_SIZE];
-    char author_name[MAX_NAME_SIZE];
-    int lives;
-    int total_wins;
-    int total_losses;
-    int total_ties;
-    int idx;
-    ErrorNum error;
+/// @brief Data to store for stats, per player, per game.
+struct GameStats {
+    int num_board_shot;
+    int hits;
+    int misses;
+    int duplicates;
+    int ships_killed;
+    GameResult result;
 };
 
-/**
- * @brief Data to store players relevant to a specific match in a contest.
- */
-struct ContestMatch {
-    ContestPlayer player1;
-    ContestPlayer player2;
+/// @brief Data to store about each player, per game.
+struct GamePlayer {
+    vector<Ship> ships;
+    vector<Shot> shots;
+    GameStats stats;
+    Error error;
 };
 
-/**
- * @brief Data to store about each player for the match.
- */
-struct MatchPlayer {
-    char ai_name[MAX_NAME_SIZE];
-    char author_name[MAX_NAME_SIZE];
+/// @brief Data to store for each game.
+struct GameLog {
+    GamePlayer player1;
+    GamePlayer player2;
+};
+
+/// @brief Data to store for stats, per player, per match.
+struct MatchStats {
     int wins;
     int losses;
     int ties;
-    ErrorNum error;
+    int total_num_board_shot;
+    int total_hits;
+    int total_misses;
+    int total_duplicates;
+    int total_ships_killed;
 };
 
-/**
- * @brief Data to store match information. Stores two MatchPlayer instances.
- */
-struct Match {
+/// @brief Data to store for each player, per match.
+struct MatchPlayer {
+    string ai_name;
+    string author_name;
+    MatchStats stats;
+    Error error;
+};
+
+/// @brief Data to store for each match.
+struct MatchLog {
+    int board_size;
+    float elapsed_time;
     MatchPlayer player1;
     MatchPlayer player2;
-    time_t elapsed_time;
+    vector<GameLog> games;
 };
 
-// Puts program in debug mode if set.
+/// @brief Data to store for stats, for each player, per contest.
+struct ContestStats {
+    int wins;
+    int losses;
+    int ties;
+    int total_wins;
+    int total_losses;
+    int total_ties;
+};
+
+/// @brief Data to store for each player, per contest.
+struct ContestPlayer {
+    int lives;
+    int last_bye_round;
+    bool played;
+    string ai_name;
+    string author_name;
+    ContestStats stats;
+    Executable exec;
+    Error error;
+};
+
+/// @brief Data about each player, per match in contest.
+struct ContestMatchPlayer {
+    int player_idx;
+    Executable exec;
+    MatchStats stats;
+    GameResult match_result;
+    Error error;
+};
+
+/// @brief Data about each match in contest.
+struct ContestMatch {
+    float elapsed_time;
+    ContestMatchPlayer player1;
+    ContestMatchPlayer player2;
+    GameLog last_game;
+};
+
+/// @brief Data about each round of contests per match.
+struct ContestRound {
+    vector<ContestMatch> matches;
+    int bye_idx;
+};
+
+/// @brief Data about the contest.
+struct ContestLog {
+    int board_size;
+    vector<ContestPlayer> players;
+    vector<ContestRound> rounds;
+};
+
+/// @brief stores the debug state of the process.
 extern bool debug;
 
-/**
- * @brief Prints error messages with a specific format.
- * @param error error to print.
- * @param file_name name of the file there error is from.
- * @param line line number of the file.
- */
-extern void print_error(const char *error, const char *file_name, int line);
+/// @brief Prints error messages with a specific format.
+/// @param error error to print.
+/// @param file_name name of the file the error is from.
+/// @param line line number of the file.
+extern void print_error(const string error, const char *file_name, int line);
 
-#endif
-
+ #endif
