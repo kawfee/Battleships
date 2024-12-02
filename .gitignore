@@ -7,7 +7,6 @@ ai_files/
 !ai_files/protected/
 logs/
 __pycache__/
-callgrind/
 
 # project binaries
 *.o

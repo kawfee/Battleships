@@ -50,7 +50,6 @@ MatchLog run_match(Connection &connect, MatchOptions &options, const char *socke
     gettimeofday(&end, NULL);
     store_elapsed_time(match, start, end);
 
-    delete_boards(board);
     return match;
 }
 

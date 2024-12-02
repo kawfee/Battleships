@@ -8,6 +8,8 @@
 #ifndef DISPLAY_CONTEST_H
 #define DISPLAY_CONTEST_H
 
+#include <tuple>
+
 #include "display_match.h"
 #include "../logic/contest_logic.h"
 
@@ -37,7 +39,12 @@ void display_contest_leaderboard(DisplayInfo &info, ContestLog &contest);
 /// @param width Width the player should be displayed as.
 /// @param lives Number of lives the player has.
 /// @return string formatted by player name.
-string print_name_by_final_status(string name, int width, int lives);
+string print_name_by_final_status(
+    string name,
+    ErrorType err,
+    int width,
+    int lives
+);
 
 
 /* ─────────────────────── *
@@ -48,7 +55,11 @@ string print_name_by_final_status(string name, int width, int lives);
 /// @param info Info for how to display.
 /// @param contest ContestLog struct to get info from.
 /// @param board Board struct to store actions to.
-void display_contest_rounds(DisplayInfo &info, ContestLog &contest, Board &board);
+void display_contest_rounds(
+    DisplayInfo &info,
+    ContestLog &contest,
+    Board &board
+);
 
 /// @brief Clears the screen and displays the round number.
 /// @param info Info for how to display.
@@ -57,15 +68,30 @@ void display_round_screen(DisplayInfo &info, int round_num);
 
 /// @brief Displays the leaderboard at the end of the round.
 /// @param info Info for how to display.
-/// @param round_players ContestPlayer list with players that were in this round.
-void display_round_leaderboard(DisplayInfo &info, vector<ContestPlayer> &round_players);
+/// @param round_players Tuple<ContestPlayer, bool> list with players that
+/// were in this round. Boolean value detemrines whether they are the bye
+/// player or not.
+void display_round_leaderboard(
+    DisplayInfo &info,
+    vector<tuple<ContestPlayer, bool>> &round_players
+);
 
 /// @brief Prints the player's name with the color of their status.
 /// @param name Name to print.
 /// @param width Width to print.
 /// @param lives Number of lives the player has at this point.
+/// @param bye_player Didn't compete that round, was a bye player.
 /// @return string of formatted name.
-string print_name_by_status(string name, int width, int lives);
+string print_name_by_status(string name, int width, int lives, bool bye_player);
+
+/// @brief Sorts the players by rank in the contest, with the tuples.
+/// @param a ContestPlayer that's first.
+/// @param b ContestPlayer that's second.
+/// @return true if in order, false if not.
+bool sort_tuple_players_by_rank(
+    const tuple<ContestPlayer, bool> &a,
+    const tuple<ContestPlayer, bool> &b
+);
 
 /// @brief Sorts the players by rank in the contest.
 /// @param a ContestPlayer that's first.
@@ -85,7 +111,13 @@ bool sort_players_by_rank(const ContestPlayer &a, const ContestPlayer &b);
 /// @param player2 ContestPlayer struct of player2.
 /// @param board Board struct to store actions to.
 /// @param round_num Round number to print.
-void display_contest_match(DisplayInfo &info, ContestMatch &match, ContestPlayer &player1, ContestPlayer &player2, Board &board, int round_num);
+void display_contest_match(
+    DisplayInfo &info,
+    ContestMatch &match,
+    ContestPlayer &player1, ContestPlayer &player2,
+    Board &board,
+    int round_num
+);
 
 /// @brief Displays the last game of the ContestMatch, and the result.
 /// @param info Info for how to display.
@@ -93,14 +125,23 @@ void display_contest_match(DisplayInfo &info, ContestMatch &match, ContestPlayer
 /// @param player1 ContestPlayer struct of player1.
 /// @param player2 ContestPlayer struct of player2.
 /// @param board Board struct to store actions to.
-void display_contest_match_game(DisplayInfo &info, ContestMatch &match, ContestPlayer &player1, ContestPlayer &player2, Board &board);
+void display_contest_match_game(
+    DisplayInfo &info,
+    ContestMatch &match,
+    ContestPlayer &player1, ContestPlayer &player2,
+    Board &board
+);
 
 /// @brief Displays the contest match VS and result.
 /// @param info Info for how to display.
 /// @param match ContestMatch struct for what to display.
 /// @param player1 ContestPlayer struct for player1.
 /// @param player2 ContestPlayer struct for player2.
-void display_contest_match_result(DisplayInfo &info, ContestMatch &match, ContestPlayer &player1, ContestPlayer &player2);
+void display_contest_match_result(
+    DisplayInfo &info,
+    ContestMatch &match,
+    ContestPlayer &player1, ContestPlayer &player2
+);
 
 /// @brief Displays the VS for a match for a contest match.
 /// @param info Info for how to display.
@@ -112,7 +153,10 @@ void display_contest_match_vs(DisplayInfo &info, string name1, string name2);
 /// @param player1_result Result of the game for player 1. All you need to determine the result.
 /// @param p1_name Name of player1.
 /// @param p2_name Name of player2.
-string print_contest_match_by_result(GameResult player1_result, string p1_name, string p2_name);
+string print_contest_match_by_result(
+    GameResult player1_result,
+    string p1_name, string p2_name
+);
 
 #endif
 

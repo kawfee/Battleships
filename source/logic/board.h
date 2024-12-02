@@ -3,8 +3,6 @@
  * @author Matthew Getgen
  * @brief Header file storing methods performed on boards.
  * @date 2023-08-28
- * 
- * Dynamic memory allocation of a 2D array from [Techie Delight](https://www.techiedelight.com/dynamic-memory-allocation-in-c-for-2d-3d-array/)
  */
 
 #ifndef BOARD_H
@@ -15,8 +13,8 @@
 
 /// @brief Data about the boards and the size of the boards.
 struct Board {
-    char **board1;
-    char **board2;
+    char board1[MAX_BOARD_SIZE][MAX_BOARD_SIZE];
+    char board2[MAX_BOARD_SIZE][MAX_BOARD_SIZE];
     int size;
 };
 
@@ -34,25 +32,47 @@ Board create_boards(int size);
 /// @param board board struct to clear.
 void clear_boards(Board &board);
 
-/// @brief Deletes the boards. Useful for cleaning up the memory.
-/// @param board board data structure.
-void delete_boards(Board &board);
-
 
 /* ────────────────────── *
  * UPDATE BOARD FUNCTIONS *
  * ────────────────────── */
 
 /// @brief Stores a ship into a board.
+/// @param board board struct to use.
+/// @param num number representing the player board to store to.
 /// @param ship Ship data structure to store.
-/// @param board Board to store ship into.
 /// @param value Value of the ship (SHIP or KILL).
-void store_ship_to_board(Ship &ship, char **board, BoardValue value);
+void store_ship_board_value(
+    Board &board,
+    PlayerNum num,
+    Ship &ship,
+    BoardValue value
+);
 
 /// @brief Stores a shot value into a board.
+/// @param board board struct to use.
+/// @param num number representing the player board to store to.
 /// @param shot Shot data structure to store.
-/// @param board Board to store shot into.
-void store_shot_to_board(Shot &shot, char **board);
+void store_shot_board_value(Board &board, PlayerNum num, Shot &shot);
+
+
+/* ──────────────────── *
+ * READ BOARD FUNCTIONS *
+ * ──────────────────── */
+
+/// @brief Gets a shot value from a board.
+/// @param board Board struct to use.
+/// @param num number to decide which board.
+/// @param shot Shot data structure to store.
+/// @return BoardValue value of board.
+BoardValue get_shot_board_value(Board &board, PlayerNum num, Shot &shot);
+
+/// @brief Calculates whether a ship is dead or not.
+/// @param board board struct to use.
+/// @param num number to decide which board.
+/// @param ship Ship structure to check the value of.
+/// @return True if ship dead, false if not.
+bool board_ship_died(Board &board, PlayerNum num, Ship &ship);
 
 #endif
 

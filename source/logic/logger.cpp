@@ -144,12 +144,22 @@ json convert_contest_round(ContestRound &round) {
     for (int i = 0; i < (int)round.matches.size(); i++) {
         log[MATCHES_KEY].push_back(convert_contest_match(round.matches.at(i)));
     }
+    if (round.bye_idx != -1) {
+        log[BYE_IDX_KEY] = round.bye_idx;
+    }
     return log;
 }
 
 bool validate_contest_round_log(ContestRound &round, json &log) {
-    if ( !check_array(log, MATCHES_KEY) ) {
+    bool valid = check_array(log, MATCHES_KEY);
+    if ( !valid ) {
         return false;
+    }
+    if ( check_contains(log, BYE_IDX_KEY) ) {
+        if ( !check_integer(log, BYE_IDX_KEY) ) return false;
+        round.bye_idx = (int)log[BYE_IDX_KEY];
+    } else {
+        round.bye_idx = -1;
     }
 
     for (int i = 0; i < (int)log[MATCHES_KEY].size(); i++) {
@@ -478,16 +488,12 @@ bool validate_game_player_log(GamePlayer &player, json &log) {
 
     for (int i = 0; i < (int)log[SHIPS_KEY].size(); i++) {
         Ship ship;
-        if ( !validate_ship_log(ship, log[SHIPS_KEY].at(i)) ) {
-            return false;
-        }
+        if ( !validate_ship_log(ship, log[SHIPS_KEY].at(i)) ) return false;
         player.ships.push_back(ship);
     }
     for (int i = 0; i < (int)log[SHOTS_KEY].size(); i++) {
         Shot shot;
-        if ( !validate_shot_log(shot, log[SHOTS_KEY].at(i)) ) {
-            return false;
-        }
+        if ( !validate_shot_log(shot, log[SHOTS_KEY].at(i)) ) return false;
         player.shots.push_back(shot);
     }
     if ( !validate_game_stats_log(player.stats, log[STATS_KEY]) ) {
@@ -531,58 +537,83 @@ bool validate_game_stats_log(GameStats &stats, json &log) {
 }
 
 json convert_ship(Ship &ship) {
-    json log = json::object();
-    log[ROW_KEY] = ship.row;
-    log[COL_KEY] = ship.col;
-    log[LEN_KEY] = ship.len;
-    log[DIR_KEY] = ship.dir;
+    json log = json::array();
+    log.push_back(ship.row);
+    log.push_back(ship.col);
+    log.push_back(ship.len);
+    log.push_back(ship.dir);
 
     return log;
 }
 
 bool validate_ship_log(Ship &ship, json &log) {
-    bool valid = 
-        check_integer(log, ROW_KEY) &&
-        check_integer(log, COL_KEY) &&
-        check_integer(log, LEN_KEY) &&
-        check_integer(log, DIR_KEY);
-    if ( !valid ) return false;
+    int logSize = (int)log.size();
+    if ( logSize != 4 ) return false;
+    for (int i = 0; i < logSize; i++) {
+        if ( !log[i].is_number_integer() ) return false;
+    }
 
-    ship.row = (int)log[ROW_KEY];
-    ship.col = (int)log[COL_KEY];
-    ship.len = (int)log[LEN_KEY];
-    ship.dir = (Direction)log[DIR_KEY];
+    for (int i = 0; i < logSize; i++) {
+        switch (i) {
+        case 0:
+            ship.row = (int)log[i];
+            break;
+        case 1:
+            ship.col = (int)log[i];
+            break;
+        case 2:
+            ship.len = (int)log[i];
+            break;
+        case 3:
+            ship.dir = (Direction)log[i];
+            break;
+        default:
+            return false;
+        }
+    }
     return true;
 }
 
 json convert_shot(Shot &shot) {
-    json log = json::object();
-    log[ROW_KEY] = shot.row;
-    log[COL_KEY] = shot.col;
-    log[VALUE_KEY] = shot.value;
-    if (shot.ship_sunk_idx != -1) 
-        log[INDEX_SHIP_KEY] = shot.ship_sunk_idx;
+    json log = json::array();
+    log.push_back(shot.row);
+    log.push_back(shot.col);
+    log.push_back(shot.value);
+    if (shot.ship_sunk_idx != -1) {
+        log.push_back(shot.ship_sunk_idx);
+    }
 
     return log;
 }
 
 bool validate_shot_log(Shot &shot, json &log) {
-    bool valid = 
-        check_integer(log, ROW_KEY) &&
-        check_integer(log, COL_KEY) &&
-        check_integer(log, VALUE_KEY);
-    if ( !valid ) return false;
-
-    if ( check_contains(log, INDEX_SHIP_KEY) ) {
-        if ( !check_integer(log, INDEX_SHIP_KEY) ) return false;
-        shot.ship_sunk_idx = (int)log[INDEX_SHIP_KEY];
-    } else {
-        shot.ship_sunk_idx = -1;
+    int logSize = (int)log.size();
+    if ( logSize != 3 && logSize != 4 ) return false;
+    for (int i = 0; i < logSize; i++) {
+        if ( !log[i].is_number_integer() ) return false;
     }
 
-    shot.row = (int)log[ROW_KEY];
-    shot.col = (int)log[COL_KEY];
-    shot.value = (BoardValue)log[VALUE_KEY];
+    // assume, then overwrite later if it exists.
+    shot.ship_sunk_idx = -1;
+
+    for (int i = 0; i < logSize; i++) {
+        switch (i) {
+        case 0:
+            shot.row = (int)log[i];
+            break;
+        case 1:
+            shot.col = (int)log[i];
+            break;
+        case 2:
+            shot.value = (BoardValue)log[i];
+            break;
+        case 3:
+            shot.ship_sunk_idx = (int)log[i];
+            break;
+        default:
+            return false;
+        }
+    }
 
     return true;
 }

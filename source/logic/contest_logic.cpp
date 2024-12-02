@@ -8,7 +8,11 @@
 #include "contest_logic.h"
 
 
-ContestLog run_contest(Connection &connect, ContestOptions &options, const char *socket_name) {
+ContestLog run_contest(
+    Connection &connect,
+    ContestOptions &options,
+    const char *socket_name
+) {
     ContestLog contest;
     contest.board_size = options.board_size;
 
@@ -19,20 +23,27 @@ ContestLog run_contest(Connection &connect, ContestOptions &options, const char 
     return contest;
 }
 
-void initialize_players(ContestLog &contest, Connection &connect, vector<Executable> &execs, const char *socket_name) {
+void initialize_players(
+    ContestLog &contest,
+    Connection &connect,
+    vector<Executable> &execs,
+    const char *socket_name
+) {
     for (int i = 0; i < (int)execs.size(); i++) {
         Executable &exec = execs.at(i);
         ContestPlayer player;
         player.exec = exec;
-        player.lives = 3;
+        player.lives = MAX_LIVES;
+        player.last_bye_round = -1;
         player.played = true;
         player.error.type = OK;
         memset(&player.stats, 0, sizeof(ContestStats));
 
         wake_up_test(player, connect, socket_name);
         if ( player.error.type != OK ) {
-            cerr << endl << player.exec.file_name << " failed a basic test. They will not participate in the contest." << endl;
-            player.lives = 0;
+            cerr << endl << player.exec.file_name
+                 << " failed a basic test. They will not participate in the contest." << endl;
+            player.lives = MIN_LIVES;
             player.played = false;
             player.ai_name = player.exec.file_name;
         }
@@ -41,12 +52,21 @@ void initialize_players(ContestLog &contest, Connection &connect, vector<Executa
     return;
 }
 
-void wake_up_test(ContestPlayer &player, Connection &connect, const char *socket_name) {
+void wake_up_test(
+    ContestPlayer &player,
+    Connection &connect,
+    const char *socket_name
+) {
     char msg[MAX_MSG_SIZE];
     memset(msg, 0, MAX_MSG_SIZE);
 
     // start the player
-    player.error.type = start_player(connect.player1, connect.server_desc, player.exec.exec.c_str(), socket_name);
+    player.error.type = start_player(
+        connect.player1,
+        connect.server_desc,
+        player.exec.exec.c_str(),
+        socket_name
+    );
     if ( player.error.type != OK ) {
         close_player_sockets(connect);
         return;
@@ -67,7 +87,12 @@ void wake_up_test(ContestPlayer &player, Connection &connect, const char *socket
     return;
 }
 
-void run_standard_contest(ContestLog &contest, Connection &connect, ContestOptions &options, const char *socket_name) {
+void run_standard_contest(
+    ContestLog &contest,
+    Connection &connect,
+    ContestOptions &options,
+    const char *socket_name
+) {
     vector<ContestMatchPlayer> round_players;
     int round_players_size;
 
@@ -75,17 +100,26 @@ void run_standard_contest(ContestLog &contest, Connection &connect, ContestOptio
         append_alive_players_to_round(contest.players, round_players);
         round_players_size = (int)round_players.size();
 
-        handle_contest_round(contest, round_players, connect, options, socket_name);
+        handle_contest_round(
+            contest,
+            round_players,
+            connect,
+            options,
+            socket_name
+        );
     } while ( round_players_size > 1 );
     return;
 }
 
-void append_alive_players_to_round(vector<ContestPlayer> &players, vector<ContestMatchPlayer> &round_players) {
+void append_alive_players_to_round(
+    vector<ContestPlayer> &players,
+    vector<ContestMatchPlayer> &round_players
+) {
     round_players.clear();
 
     for (int i = 0; i < (int)players.size(); i++) {
         ContestMatchPlayer alive_player;
-        if ( players.at(i).lives > 0 ) {
+        if ( players.at(i).lives > MIN_LIVES ) {
             alive_player.player_idx = i;
             alive_player.exec = players.at(i).exec;
             alive_player.error.type = OK;
@@ -96,10 +130,17 @@ void append_alive_players_to_round(vector<ContestPlayer> &players, vector<Contes
     return;
 }
 
-void handle_contest_round(ContestLog &contest, vector<ContestMatchPlayer> &round_players, Connection &connect, ContestOptions &options, const char *socket_name) {
+void handle_contest_round(
+    ContestLog &contest,
+    vector<ContestMatchPlayer> &round_players,
+    Connection &connect, ContestOptions &options,
+    const char *socket_name
+) {
     ContestRound round;
     int round_num = (int)contest.rounds.size() + 1;
+    round.bye_idx = -1;
 
+    choose_bye_player(contest, round, round_num, round_players);
     randomly_set_match_opponents(round, round_players);
     if ( round.matches.size() == 0 ) {
         return;
@@ -128,7 +169,51 @@ void handle_contest_round(ContestLog &contest, vector<ContestMatchPlayer> &round
     return;
 }
 
-void randomly_set_match_opponents(ContestRound &round, vector<ContestMatchPlayer> &round_players) {
+void choose_bye_player(
+    ContestLog &contest,
+    ContestRound &round,
+    int round_num,
+    vector<ContestMatchPlayer> &round_players
+) {
+    // even, can't choose a bye player.
+    if ( round_players.size() % 2 == 0 ) return;
+
+    int oldest_bye_round;
+    for (int i = 0; i < (int)round_players.size(); i++) {
+        int player_idx = round_players.at(i).player_idx;
+        int bye_round_num = contest.players.at(player_idx).last_bye_round;
+        if ( i == 0 ) oldest_bye_round = bye_round_num;
+        if (bye_round_num < oldest_bye_round) {
+            oldest_bye_round = bye_round_num;
+        }
+    }
+
+    vector<int> bye_player_choices;
+    for (int i = 0; i < (int)round_players.size(); i++) {
+        int player_idx = round_players.at(i).player_idx;
+        int bye_round_num = contest.players.at(player_idx).last_bye_round;
+        if (bye_round_num == oldest_bye_round) {
+            bye_player_choices.push_back(i);
+        }
+    }
+
+    int bye_player_nums = (int)bye_player_choices.size();
+    if (bye_player_nums > 0) {
+        int choice = rand() % bye_player_nums;
+        int choice_idx = bye_player_choices.at(choice);
+
+        round.bye_idx = round_players.at(choice_idx).player_idx;
+        contest.players.at(round.bye_idx).last_bye_round = round_num;
+
+        round_players.erase(round_players.begin()+choice_idx);
+    }
+    return;
+}
+
+void randomly_set_match_opponents(
+    ContestRound &round,
+    vector<ContestMatchPlayer> &round_players
+) {
     int round_players_size = (int)round_players.size();
 
     while ( round_players_size > 1 ) {
@@ -152,7 +237,10 @@ void randomly_set_match_opponents(ContestRound &round, vector<ContestMatchPlayer
     return;
 }
 
-void collect_contest_player_stats(ContestPlayer &c_player, ContestMatchPlayer &m_player) {
+void collect_contest_player_stats(
+    ContestPlayer &c_player,
+    ContestMatchPlayer &m_player
+) {
     switch (m_player.match_result) {
     case WIN:
         c_player.stats.wins++;
@@ -171,11 +259,16 @@ void collect_contest_player_stats(ContestPlayer &c_player, ContestMatchPlayer &m
     c_player.stats.total_ties += m_player.stats.ties;
 
     c_player.error = m_player.error;
-    if ( c_player.error.type != OK ) c_player.lives = 0;
+    if ( c_player.error.type != OK ) c_player.lives = MIN_LIVES;
     return;
 }
 
-void handle_contest_match(ContestMatch &c_match, Connection &connect, ContestOptions &contest_options, const char *socket_name) {
+void handle_contest_match(
+    ContestMatch &c_match,
+    Connection &connect,
+    ContestOptions &contest_options,
+    const char *socket_name
+) {
     MatchOptions match_options;
     match_options.board_size = contest_options.board_size;
     match_options.num_games = contest_options.num_games;
@@ -214,7 +307,10 @@ void handle_contest_match(ContestMatch &c_match, Connection &connect, ContestOpt
     return;
 }
 
-void collect_match_player_stats(ContestMatchPlayer &c_player, MatchPlayer &m_player) {
+void collect_match_player_stats(
+    ContestMatchPlayer &c_player,
+    MatchPlayer &m_player
+) {
     c_player.error = m_player.error;
     c_player.stats = m_player.stats;
     return;

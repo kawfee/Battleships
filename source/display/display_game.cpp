@@ -14,8 +14,8 @@ void display_game(DisplayInfo &info, GameLog &game, Board &board) {
     display_empty_boards(info, board.size);
 
     for (int i = 0; i < (int)game.player1.ships.size(); i++) {
-        store_ship_to_board(game.player1.ships.at(i), board.board1, SHIP);
-        store_ship_to_board(game.player2.ships.at(i), board.board2, SHIP);
+        store_ship_board_value(board, PLAYER_1, game.player1.ships.at(i), SHIP);
+        store_ship_board_value(board, PLAYER_2, game.player2.ships.at(i), SHIP);
     }
 
     usleep(info.delay_time);
@@ -24,18 +24,18 @@ void display_game(DisplayInfo &info, GameLog &game, Board &board) {
         Shot shot1, shot2;
         shot1 = game.player1.shots.at(i);
         shot2 = game.player2.shots.at(i);
-        store_shot_to_board(shot1, board.board2);
-        store_shot_to_board(shot2, board.board1);
+        store_shot_board_value(board, PLAYER_2, shot1);
+        store_shot_board_value(board, PLAYER_1, shot2);
 
         if ( shot1.ship_sunk_idx != -1 ) {
             Ship ship = game.player2.ships.at(shot1.ship_sunk_idx);
-            store_ship_to_board(ship, board.board2, KILL);
+            store_ship_board_value(board, PLAYER_2, ship, KILL);
             display_ship(info, ship, KILL, BOARD_2_OFFSET);
             shot1.value = KILL;
         }
         if ( shot2.ship_sunk_idx != -1 ) {
             Ship ship = game.player1.ships.at(shot2.ship_sunk_idx);
-            store_ship_to_board(ship, board.board1, KILL);
+            store_ship_board_value(board, PLAYER_1, ship, KILL);
             display_ship(info, ship, KILL, BOARD_1_OFFSET);
             shot2.value = KILL;
         }
@@ -189,24 +189,24 @@ void store_step_through_state(DisplayInfo &info, StepThroughInfo &step_info, Gam
     for (int i = 0; i < step_info.ship_step; i++) {
         ship1 = game.player1.ships.at(i);
         ship2 = game.player2.ships.at(i);
-        store_ship_to_board(ship1, board.board1, SHIP);
-        store_ship_to_board(ship2, board.board2, SHIP);
+        store_ship_board_value(board, PLAYER_1, ship1, SHIP);
+        store_ship_board_value(board, PLAYER_2, ship2, SHIP);
     }
 
     for (int i = 0; i < step_info.shot_step; i++) {
         shot1 = game.player1.shots.at(i);
         shot2 = game.player2.shots.at(i);
-        store_shot_to_board(shot1, board.board2);
-        store_shot_to_board(shot2, board.board1);
+        store_shot_board_value(board, PLAYER_2, shot1);
+        store_shot_board_value(board, PLAYER_1, shot2);
 
         if ( shot1.ship_sunk_idx != -1 ) {
             Ship ship = game.player2.ships.at(shot1.ship_sunk_idx);
-            store_ship_to_board(ship, board.board2, KILL);
+            store_ship_board_value(board, PLAYER_2, ship, KILL);
             shot1.value = KILL;
         }
         if ( shot2.ship_sunk_idx != -1 ) {
             Ship ship = game.player1.ships.at(shot2.ship_sunk_idx);
-            store_ship_to_board(ship, board.board1, KILL);
+            store_ship_board_value(board, PLAYER_1, ship, KILL);
             shot2.value = KILL;
         }
     }

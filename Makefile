@@ -1,6 +1,5 @@
 .SUFFIXES:
 .SUFFIXES: .cpp .o
-.PHONY: default contest all run build player clean clean_controller clean_player options
 
 # Default Compilation rules
 CXX = g++
@@ -32,24 +31,29 @@ player_obj =	$(protect_dir)Player.o
 ai_srcs =	$(wildcard $(ai_dir)*.cpp)
 ai_execs =	$(patsubst %.cpp, %, $(ai_srcs))
 
+.PHONY: default
 default: all
 
+.PHONY: all
 # the default, no player optimization
 all: CXXFLAGS = $(DEBUG_CXXFLAGS)
 all: run
 
+.PHONY: contest
 # a contest, build players with optimization flags
 contest: CXXFLAGS = $(RELEASE_CXXFLAGS)
 contest: PLAYER_CXXFLAGS = $(RELEASE_CXXFLAGS)
 contest: clean run
 
+.PHONY: run
 run: build
 	@echo "running controller"
 	@./controller
 
+.PHONY: build
 build: controller player
 
-# controller and source
+# controller and source binaries
 controller: $(objs)
 	@echo "building $@"
 	@$(CXX) $(CXXFLAGS) -o $@ controller.cpp $(objs)
@@ -60,6 +64,7 @@ $(src_dir)%.o: $(src_dir)%.cpp
 	@$(CXX) $(CXXFLAGS) -o $@ -c $<
 
 # normal players
+.PHONY: player
 player: CXXFLAGS = $(PLAYER_CXXFLAGS)
 player: $(player_obj) $(ai_execs)
 
@@ -71,27 +76,37 @@ $(ai_dir)%: $(ai_dir)%.cpp $(player_obj)
 	@echo "building $@"
 	@$(CXX) $(CXXFLAGS) -o $@ $< $(player_obj)
 
+.PHONY: options
 options: example-options.json
 	@echo "creating options.json"
 	@cp example-options.json options.json
 
+
 # cleanup
+.PHONY: clean
 clean: clean_controller clean_player
 
+.PHONY: clean_controller
 clean_controller:
-	@echo "removing controller executable and battleships socket"
+	@echo "removing controller compiled binary and battleships socket file"
 	@rm -f controller battleships.socket
+
+	@echo "removing source object files"
+	@rm -f $(objs)
 
 	@echo "removing logs"
 	@rm -f logs/match_log.json logs/contest_log.json
 
-	@echo "removing binary object source files"
-	@rm -f $(objs)
-
+.PHONY: clean_player
 clean_player:
-	@echo "removing Player.cpp object files"
+	@echo "removing Player class object file"
 	@rm -f $(player_obj)
 
-	@echo "removing player executables"
+	@echo "removing player compiled binaries"
 	@rm -f $(ai_execs)
+
+.PHONY: clean_options
+clean_options:
+	@echo "removing options.json file"
+	@rm -f options.json
 

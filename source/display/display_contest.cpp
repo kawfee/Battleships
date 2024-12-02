@@ -21,10 +21,7 @@ void display_contest_with_options(ContestLog &contest, ContestOptions &options) 
     info.step_through = false;
 
     Board board = create_boards(contest.board_size);
-
     display_contest(info, contest, board);
-
-    delete_boards(board);
     return;
 }
 
@@ -81,11 +78,16 @@ void display_contest_leaderboard(DisplayInfo &info, ContestLog &contest) {
     info.display_row += 2;
 
     cout << conio::gotoRowCol(info.display_row, 1) << " "
-         << setfill(' ') << setw(rank_width) << right << RANK << " " << vertical << " "
-         << setfill(' ') << setw(name_width) << left << NAME << " " << vertical << " "
-         << setfill(' ') << setw(num_width) << right << WINS << " " << vertical << " "
-         << setfill(' ') << setw(num_width) << right << LOSSES << " " << vertical << " "
-         << setfill(' ') << setw(num_width) << right << TIES << " " << vertical;
+         << setfill(' ') << setw(rank_width) << right
+         << RANK << " " << vertical << " "
+         << setfill(' ') << setw(name_width) << left
+         << NAME << " " << vertical << " "
+         << setfill(' ') << setw(num_width) << right
+         << WINS << " " << vertical << " "
+         << setfill(' ') << setw(num_width) << right
+         << LOSSES << " " << vertical << " "
+         << setfill(' ') << setw(num_width) << right
+         << TIES << " " << vertical;
     info.display_row++; 
 
     cout << conio::gotoRowCol(info.display_row, 1)
@@ -99,37 +101,57 @@ void display_contest_leaderboard(DisplayInfo &info, ContestLog &contest) {
     for (int i = 0; i < (int)sorted_players.size(); i++) {
         ContestPlayer &player = sorted_players.at(i);
         cout << conio::gotoRowCol(info.display_row, 1) << " "
-            << setfill(' ') << setw(rank_width) << right << i+1 << " " << vertical << " "
-            << print_name_by_final_status(player.ai_name, name_width, player.lives) << " " << vertical << " "
-            << setfill(' ') << setw(num_width) << right << player.stats.wins << " " << vertical << " "
-            << setfill(' ') << setw(num_width) << right << player.stats.losses << " " << vertical << " "
-            << setfill(' ') << setw(num_width) << right << player.stats.ties << " " << vertical;
+             << setfill(' ') << setw(rank_width) << right << i+1 << " "
+             << vertical << " "
+             << print_name_by_final_status(
+                    player.ai_name,
+                    player.error.type,
+                    name_width,
+                    player.lives
+                )
+             << " " << vertical << " "
+             << setfill(' ') << setw(num_width) << right
+             << player.stats.wins << " " << vertical << " "
+             << setfill(' ') << setw(num_width) << right
+             << player.stats.losses << " " << vertical << " "
+             << setfill(' ') << setw(num_width) << right
+             << player.stats.ties << " " << vertical;
         info.display_row++; 
     }
     info.display_row++;
 
     cout << conio::gotoRowCol(info.display_row, 1)
-         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::RESET) << " *" << conio::resetAll()
+         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::RED)
+         << " *" << conio::resetAll()
+         << " - Player caused an error and lost" << endl
+         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::RESET)
+         << " *" << conio::resetAll()
          << " - Player lost" << endl
-         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::GREEN) << " *" << conio::resetAll()
+         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::GREEN)
+         << " *" << conio::resetAll()
          << " - Player won!" << endl;
-    info.display_row += 2;
+    info.display_row += 3;
     reset_cursor(info.display_row);
 
     return;
 }
 
-string print_name_by_final_status(string name, int width, int lives) {
+string print_name_by_final_status(
+    string name,
+    ErrorType err,
+    int width,
+    int lives
+) {
     ostringstream strm;
     conio::Color color = conio::RESET;
-    switch (lives) {
-    case 0:
-        break;
-    default:
-        // winner should be displayed.
-        color = conio::GREEN;
-    }
-    strm << conio::setTextStyle(conio::BOLD) << conio::fgColor(color) << setfill(' ') << setw(width) << left << name << conio::resetAll();
+    // winner should be displayed.
+    if ( lives > MIN_LIVES ) color = conio::GREEN;
+    // error players should be displayed.
+    if ( err != OK ) color = conio::RED;
+
+    strm << conio::setTextStyle(conio::BOLD) << conio::fgColor(color)
+         << setfill(' ') << setw(width) << left
+         << name << conio::resetAll();
     return strm.str();
 }
 
@@ -138,15 +160,19 @@ string print_name_by_final_status(string name, int width, int lives) {
  * DISPLAY ROUND FUNCTIONS *
  * ─────────────────────── */
 
-void display_contest_rounds(DisplayInfo &info, ContestLog &contest, Board &board) {
+void display_contest_rounds(
+    DisplayInfo &info,
+    ContestLog &contest,
+    Board &board
+) {
     vector<ContestPlayer> copy_players;
 
     // NOTE: set players back to default stats just for the sake of replay.
     for (int i = 0; i < (int)contest.players.size(); i++) {
         ContestPlayer player = contest.players.at(i);
-        player.lives = 3;
+        player.lives = MAX_LIVES;
         if ( !player.played ) {
-            player.lives = 0;
+            player.lives = MIN_LIVES;
             player.error.type = OK;
         }
         memset(&player.stats, 0, sizeof(ContestStats));
@@ -155,14 +181,6 @@ void display_contest_rounds(DisplayInfo &info, ContestLog &contest, Board &board
 
     for (int i = 0; i < (int)contest.rounds.size(); i++) {
         ContestRound &round = contest.rounds.at(i);
-        vector<int> round_player_numbers;
-        
-        for (int j = 0; j < (int)copy_players.size(); j++) {
-            ContestPlayer &player = copy_players.at(j);
-            if ( player.lives > 0 ) {
-                round_player_numbers.push_back(j);
-            }
-        }
 
         switch (info.contest_type) {
         case NORMAL:
@@ -173,10 +191,20 @@ void display_contest_rounds(DisplayInfo &info, ContestLog &contest, Board &board
             break;
         }
 
+        vector<int> round_player_numbers;
+        if ( round.bye_idx != -1 ) {
+            round_player_numbers.push_back(round.bye_idx);
+        }
         for (int j = 0; j < (int)round.matches.size(); j++) {
             ContestMatch &match = round.matches.at(j);
-            ContestPlayer &player1 = copy_players.at(match.player1.player_idx);
-            ContestPlayer &player2 = copy_players.at(match.player2.player_idx);
+            int idx1 = match.player1.player_idx;
+            int idx2 = match.player2.player_idx;
+
+            round_player_numbers.push_back(idx1);
+            round_player_numbers.push_back(idx2);
+
+            ContestPlayer &player1 = copy_players.at(idx1);
+            ContestPlayer &player2 = copy_players.at(idx2);
 
             collect_contest_player_stats(player1, match.player1);
             collect_contest_player_stats(player2, match.player2);
@@ -184,11 +212,15 @@ void display_contest_rounds(DisplayInfo &info, ContestLog &contest, Board &board
             display_contest_match(info, match, player1, player2, board, i);
         }
 
-        vector<ContestPlayer> round_players;
+        vector<tuple<ContestPlayer, bool>> round_players;
         for (int j = 0; j < (int)round_player_numbers.size(); j++) {
             int idx = round_player_numbers.at(j);
+            bool bye_player = false;
+            if ( idx == round.bye_idx ) {
+                bye_player = true;
+            }
             ContestPlayer &player = copy_players.at(idx);
-            round_players.push_back(player);
+            round_players.push_back(make_tuple(player, bye_player));
         }
 
         switch (info.contest_type) {
@@ -210,12 +242,16 @@ void display_round_screen(DisplayInfo &info, int round_num) {
     reset_screen(info);
     cout << conio::gotoRowCol(info.display_row, 1)
          << conio::setTextStyle(conio::BOLD)
-         << "Round #" << round_num + 1 << conio::setTextStyle(conio::NORMAL_INTENSITY) << flush;
+         << "Round #" << round_num + 1
+         << conio::setTextStyle(conio::NORMAL_INTENSITY) << flush;
     info.display_row += 2;
     return;
 }
 
-void display_round_leaderboard(DisplayInfo &info, vector<ContestPlayer> &round_players) {
+void display_round_leaderboard(
+    DisplayInfo &info,
+    vector<tuple<ContestPlayer, bool>> &round_players
+) {
     const string
         RANK   = "Rank",
         NAME   = "Name",
@@ -227,7 +263,7 @@ void display_round_leaderboard(DisplayInfo &info, vector<ContestPlayer> &round_p
         name_width = (int)NAME.size(),
         num_width  = 6;
     
-    sort(round_players.begin(), round_players.end(), sort_players_by_rank);
+    sort(round_players.begin(), round_players.end(), sort_tuple_players_by_rank);
 
     cout << conio::gotoRowCol(info.display_row, 1)
             << conio::setTextStyle(conio::BOLD)
@@ -237,7 +273,9 @@ void display_round_leaderboard(DisplayInfo &info, vector<ContestPlayer> &round_p
 
     // get max name width
     for (int i = 0; i < (int)round_players.size(); i++) {
-        ContestPlayer &player = round_players.at(i);
+        tuple<ContestPlayer, bool> &player_bool = round_players.at(i);
+        ContestPlayer &player = get<0>(player_bool);
+
         if ( (int)player.ai_name.size() > name_width ) {
             name_width = player.ai_name.size();
         }
@@ -245,11 +283,16 @@ void display_round_leaderboard(DisplayInfo &info, vector<ContestPlayer> &round_p
     if ( name_width < 5 ) name_width = 5;
 
     cout << conio::gotoRowCol(info.display_row, 1) << " "
-         << setfill(' ') << setw(rank_width) << right << RANK << " " << vertical << " "
-         << setfill(' ') << setw(name_width) << left << NAME << " " << vertical << " "
-         << setfill(' ') << setw(num_width) << right << WINS << " " << vertical << " "
-         << setfill(' ') << setw(num_width) << right << LOSSES << " " << vertical << " "
-         << setfill(' ') << setw(num_width) << right << TIES << " " << vertical;
+         << setfill(' ') << setw(rank_width) << right
+         << RANK << " " << vertical << " "
+         << setfill(' ') << setw(name_width) << left
+         << NAME << " " << vertical << " "
+         << setfill(' ') << setw(num_width) << right
+         << WINS << " " << vertical << " "
+         << setfill(' ') << setw(num_width) << right
+         << LOSSES << " " << vertical << " "
+         << setfill(' ') << setw(num_width) << right
+         << TIES << " " << vertical;
     info.display_row++; 
 
     cout << conio::gotoRowCol(info.display_row, 1)
@@ -261,23 +304,42 @@ void display_round_leaderboard(DisplayInfo &info, vector<ContestPlayer> &round_p
     info.display_row++;
 
     for (int i = 0; i < (int)round_players.size(); i++) {
-        ContestPlayer &player = round_players.at(i);
+        tuple<ContestPlayer, bool> &player_bool = round_players.at(i);
+        ContestPlayer &player = get<0>(player_bool);
+        bool bye_player = get<1>(player_bool);
+
         cout << conio::gotoRowCol(info.display_row, 1) << " "
-            << setfill(' ') << setw(rank_width) << right << i+1 << " " << vertical << " "
-            << print_name_by_status(player.ai_name, name_width, player.lives) << " " << vertical << " "
-            << setfill(' ') << setw(num_width) << right << player.stats.wins << " " << vertical << " "
-            << setfill(' ') << setw(num_width) << right << player.stats.losses << " " << vertical << " "
-            << setfill(' ') << setw(num_width) << right << player.stats.ties << " " << vertical;
+             << setfill(' ') << setw(rank_width) << right
+             << i+1 << " " << vertical << " "
+             << print_name_by_status(
+                     player.ai_name,
+                     name_width,
+                     player.lives,
+                     bye_player
+                )
+             << " " << vertical << " "
+             << setfill(' ') << setw(num_width) << right
+             << player.stats.wins << " " << vertical << " "
+             << setfill(' ') << setw(num_width) << right
+             << player.stats.losses << " " << vertical << " "
+             << setfill(' ') << setw(num_width) << right
+             << player.stats.ties << " " << vertical;
         info.display_row++; 
     }
     info.display_row++;
 
     cout << conio::gotoRowCol(info.display_row, 1)
-         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::RESET) << " *" << conio::resetAll()
+         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::RESET)
+         << " *" << conio::resetAll()
          << " - Player is moving on" << endl
-         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::YELLOW) << " *" << conio::resetAll()
+         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::BLUE)
+         << " *" << conio::resetAll()
+         << " - Player had a bye round and is automatically moving on" << endl
+         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::YELLOW)
+         << " *" << conio::resetAll()
          << " - Player is close to removal" << endl
-         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::RED) << " *" << conio::resetAll()
+         << conio::setTextStyle(conio::BOLD) << conio::fgColor(conio::RED)
+         << " *" << conio::resetAll()
          << " - Player will be removed next round" << endl;
     info.display_row += 3;
     reset_cursor(info.display_row);
@@ -285,19 +347,34 @@ void display_round_leaderboard(DisplayInfo &info, vector<ContestPlayer> &round_p
     return;
 }
 
-string print_name_by_status(string name, int width, int lives) {
+string print_name_by_status(string name, int width, int lives, bool bye_player) {
     ostringstream strm;
     conio::Color color = conio::RESET;
     switch (lives) {
-    case 1:
+    case MIN_LIVES+1:
         color = conio::YELLOW;
         break;
-    case 0:
+    case MIN_LIVES:
         color = conio::RED;
         break;
     }
-    strm << conio::setTextStyle(conio::BOLD) << conio::fgColor(color) << setfill(' ') << setw(width) << left << name << conio::resetAll();
+    if ( bye_player ) {
+        color = conio::BLUE;
+    }
+    strm << conio::setTextStyle(conio::BOLD)
+         << conio::fgColor(color)
+         << setfill(' ') << setw(width) << left
+         << name << conio::resetAll();
     return strm.str();
+}
+
+bool sort_tuple_players_by_rank(
+    const tuple<ContestPlayer, bool> &a,
+    const tuple<ContestPlayer, bool> &b
+) {
+    const ContestPlayer &cpa = get<0>(a);
+    const ContestPlayer &cpb = get<0>(b);
+    return sort_players_by_rank(cpa, cpb);
 }
 
 bool sort_players_by_rank(const ContestPlayer &a, const ContestPlayer &b) {
@@ -325,7 +402,14 @@ bool sort_players_by_rank(const ContestPlayer &a, const ContestPlayer &b) {
  * DISPLAY MATCH FUNCTIONS *
  * ─────────────────────── */
 
-void display_contest_match(DisplayInfo &info, ContestMatch &match, ContestPlayer &player1, ContestPlayer &player2, Board &board, int round_num) {
+void display_contest_match(
+    DisplayInfo &info,
+    ContestMatch &match,
+    ContestPlayer &player1,
+    ContestPlayer &player2,
+    Board &board,
+    int round_num
+) {
     switch (info.contest_type) {
     case FINAL:
         break;
@@ -342,7 +426,12 @@ void display_contest_match(DisplayInfo &info, ContestMatch &match, ContestPlayer
     return;
 }
 
-void display_contest_match_game(DisplayInfo &info, ContestMatch &match, ContestPlayer &player1, ContestPlayer &player2, Board &board) {
+void display_contest_match_game(
+    DisplayInfo &info,
+    ContestMatch &match,
+    ContestPlayer &player1, ContestPlayer &player2,
+    Board &board
+) {
     switch (info.contest_type) {
     case ROUNDS:
     case FINAL:
@@ -360,15 +449,23 @@ void display_contest_match_game(DisplayInfo &info, ContestMatch &match, ContestP
     return;
 }
 
-void display_contest_match_result(DisplayInfo &info, ContestMatch &match, ContestPlayer &player1, ContestPlayer &player2) {
+void display_contest_match_result(
+    DisplayInfo &info,
+    ContestMatch &match,
+    ContestPlayer &player1, ContestPlayer &player2
+) {
     display_contest_match_vs(info, player1.ai_name, player2.ai_name);
     switch (info.contest_type) {
     case FINAL:
         break;
     case NORMAL:
     case ROUNDS:
-        cout << conio::gotoRowCol(info.display_row, 1) << conio::setTextStyle(conio::BOLD)
-             << print_contest_match_by_result(match.player1.match_result, player1.ai_name, player2.ai_name)
+        cout << conio::gotoRowCol(info.display_row, 1)
+             << conio::setTextStyle(conio::BOLD)
+             << print_contest_match_by_result(
+                    match.player1.match_result,
+                    player1.ai_name, player2.ai_name
+                )
              << conio::setTextStyle(conio::NORMAL_INTENSITY);
         info.display_row += 2;
         reset_cursor(info.display_row);
@@ -392,7 +489,10 @@ void display_contest_match_vs(DisplayInfo &info, string name1, string name2) {
     return;
 }
 
-string print_contest_match_by_result(GameResult player1_result, string p1_name, string p2_name) {
+string print_contest_match_by_result(
+    GameResult player1_result,
+    string p1_name, string p2_name
+) {
     ostringstream strm;
     switch (player1_result) {
     case WIN:

@@ -3,9 +3,6 @@
  * @author Matthew Getgen
  * @brief Functionality for methods performed on boards.
  * @date 2022-09-26
- * 
- * Dynamic memory allocation of a 2D array from [Techie Delight](https://www.techiedelight.com/dynamic-memory-allocation-in-c-for-2d-3d-array/)
- * 
  */
 
 #include "board.h"
@@ -17,20 +14,16 @@
 
 Board create_boards(int size) {
     Board board;
+    assert(size >= MIN_BOARD_SIZE);
+    assert(size <= MAX_BOARD_SIZE);
     board.size = size;
-    // dynamically create an array of pointers.
-    board.board1 = new char*[size];
-    board.board2 = new char*[size];
 
-    // dynamically allocate memory of size `board_size` for each row.
-    for (int i = 0; i < size; i++) {
-        board.board1[i] = new char[size];
-        board.board2[i] = new char[size];
-    }
     return board;
 }
 
 void clear_boards(Board &board) {
+    assert(board.size >= MIN_BOARD_SIZE);
+    assert(board.size <= MAX_BOARD_SIZE);
     int size = board.size;
     // assign values to the board
     for (int i = 0; i < size; i++) {
@@ -42,35 +35,100 @@ void clear_boards(Board &board) {
     return;
 }
 
-void delete_boards(Board &board) {
-    // deallocate memory using the delete operator
-    for (int i = 0; i < board.size; i++) {
-        delete[] board.board1[i];
-        delete[] board.board2[i];
-    }
-    delete[] board.board1;
-    delete[] board.board2;
-
-    return;
-}
-
 
 /* ────────────────────── *
  * UPDATE BOARD FUNCTIONS *
  * ────────────────────── */
 
-void store_ship_to_board(Ship &ship, char **board, BoardValue value) {
-    int r = ship.row, c = ship.col;
-    for (int l = 0; l < ship.len; l++) {
-        if (ship.dir == HORIZONTAL) board[r][c+l] = value;
-        else                        board[r+l][c] = value;
+void store_ship_board_value(
+    Board &board,
+    PlayerNum num,
+    Ship &ship,
+    BoardValue value
+) {
+    assert(board.size >= MIN_BOARD_SIZE);
+    assert(board.size <= MAX_BOARD_SIZE);
+    assert(num == PLAYER_1 || num == PLAYER_2);
+    assert(ship.row >= 0);
+    assert(ship.row < board.size);
+    assert(ship.col >= 0);
+    assert(ship.col < board.size);
+    assert(ship.dir == HORIZONTAL || ship.dir == VERTICAL);
+    assert(
+        (ship.dir == HORIZONTAL && (ship.col + (ship.len-1) < board.size)) ||
+        (ship.dir == VERTICAL && (ship.row + (ship.len-1) < board.size))
+    );
 
+    int r = ship.row, c = ship.col;
+    int rm = ship.dir == VERTICAL, cm = ship.dir == HORIZONTAL;
+    int rv, cv;
+    for (int l = 0; l < ship.len; l++) {
+        rv = r + (l * rm);
+        cv = c + (l * cm);
+        if (num == PLAYER_1) board.board1[rv][cv] = value;
+        else board.board2[rv][cv] = value;
     }
     return;
 }
 
-void store_shot_to_board(Shot &shot, char **board) {
-    board[shot.row][shot.col] = shot.value;
+void store_shot_board_value(Board &board, PlayerNum num, Shot &shot) {
+    assert(board.size >= MIN_BOARD_SIZE);
+    assert(board.size <= MAX_BOARD_SIZE);
+    assert(num == PLAYER_1 || num == PLAYER_2);
+    assert(shot.row >= 0);
+    assert(shot.row < board.size);
+    assert(shot.col >= 0);
+    assert(shot.col < board.size);
+    if (num == PLAYER_1) board.board1[shot.row][shot.col] = shot.value;
+    else board.board2[shot.row][shot.col] = shot.value;
     return;
+}
+
+
+/* ──────────────────── *
+ * READ BOARD FUNCTIONS *
+ * ──────────────────── */
+
+BoardValue get_shot_board_value(Board &board, PlayerNum num, Shot &shot) {
+    assert(board.size >= MIN_BOARD_SIZE);
+    assert(board.size <= MAX_BOARD_SIZE);
+    assert(num == PLAYER_1 || num == PLAYER_2);
+    assert(shot.row >= 0);
+    assert(shot.row < board.size);
+    assert(shot.col >= 0);
+    assert(shot.col < board.size);
+    if (num == PLAYER_1) return (BoardValue)board.board1[shot.row][shot.col];
+    else return (BoardValue)board.board2[shot.row][shot.col];
+}
+
+bool board_ship_died(Board &board, PlayerNum num, Ship &ship) {
+    assert(board.size >= MIN_BOARD_SIZE);
+    assert(board.size <= MAX_BOARD_SIZE);
+    assert(num == PLAYER_1 || num == PLAYER_2);
+    assert(ship.row >= 0);
+    assert(ship.row < board.size);
+    assert(ship.col >= 0);
+    assert(ship.col < board.size);
+    assert(ship.dir == HORIZONTAL || ship.dir == VERTICAL);
+    assert(
+        (ship.dir == HORIZONTAL && (ship.col + (ship.len-1) < board.size)) ||
+        (ship.dir == VERTICAL && (ship.row + (ship.len-1) < board.size))
+    );
+
+    int r = ship.row, c = ship.col;
+    int rm = ship.dir == VERTICAL, cm = ship.dir == HORIZONTAL;
+    int rv, cv;
+    BoardValue value;
+    for (int l = 0; l < ship.len; l++) {
+        rv = r + (l * rm);
+        cv = c + (l * cm);
+        if (num == PLAYER_1) value = (BoardValue)board.board1[rv][cv];
+        else value = (BoardValue)board.board2[rv][cv];
+
+        if (value != HIT && value != DUPLICATE_HIT) {
+            return false;
+        }
+    }
+    return true;
 }
 

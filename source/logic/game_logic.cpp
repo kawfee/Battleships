@@ -99,13 +99,13 @@ int handle_ship_placement(GameLog &game, Connection &connect, Board &board, int 
     status = check_game_errors(game);
     if (status) return status;
 
-    game.player1.error = validate_ship_placement(board.board1, board.size, ship1, length);
-    game.player2.error = validate_ship_placement(board.board2, board.size, ship2, length);
+    game.player1.error = validate_ship_placement(board, PLAYER_1, ship1, length);
+    game.player2.error = validate_ship_placement(board, PLAYER_2, ship2, length);
     status = check_game_errors(game);
     if (status) return status;
 
-    store_ship_to_board(ship1, board.board1, SHIP);
-    store_ship_to_board(ship2, board.board2, SHIP);
+    store_ship_board_value(board, PLAYER_1, ship1, SHIP);
+    store_ship_board_value(board, PLAYER_2, ship2, SHIP);
 
     ship1.alive = true;
     ship2.alive = true;
@@ -116,19 +116,26 @@ int handle_ship_placement(GameLog &game, Connection &connect, Board &board, int 
     return status;
 }
 
-Error validate_ship_placement(char **board, int board_size, Ship &ship, int length) {
+Error validate_ship_placement(
+    Board &board,
+    PlayerNum num,
+    Ship &ship,
+    int expected_length
+) {
     Error error;
     error.type = OK;
 
-    if ( ship.len != length ) {
+    if ( ship.len != expected_length ) {
         error.type = ErrShipLength;
         error.ship = ship;
         print_error(SHIP_PLACE_ERR, __FILE__, __LINE__);
-        printf("Ship returned with length: %d, but expected length: %d\n", ship.len, length);
+        printf("Ship returned with length: %d, but expected length: %d\n",
+            ship.len, expected_length
+        );
         return error;
     }
 
-    int front = 0, end = board_size, check = 0;
+    int front = 0, end = board.size, check = 0;
     if ( ship.dir == HORIZONTAL ) {
         front = ship.col;
         end = ship.col + (ship.len - 1);
@@ -139,7 +146,7 @@ Error validate_ship_placement(char **board, int board_size, Ship &ship, int leng
         check = ship.col;
     }
 
-    if ( front < 0 || end >= board_size || check < 0 || check >= board_size ) {
+    if ( front < 0 || end >= board.size || check < 0 || check >= board.size ) {
         error.type = ErrShipOffBoard;
         error.ship = ship;
         print_error(SHIP_PLACE_ERR, __FILE__, __LINE__);
@@ -147,10 +154,13 @@ Error validate_ship_placement(char **board, int board_size, Ship &ship, int leng
         return error;
     }
 
-    for (int i = 0; i < ship.len; i++) {
-        if ( ( ship.dir == HORIZONTAL && board[ship.row][ship.col+i] != WATER ) ||
-             ( ship.dir == VERTICAL   && board[ship.row+i][ship.col] != WATER ) ) {
-            
+    int r = ship.row, c = ship.col;
+    int rm = ship.dir == VERTICAL, cm = ship.dir == HORIZONTAL;
+    Shot shot;
+    for (int l = 0; l < ship.len; l++) {
+        shot.row = r + (l * rm);
+        shot.col = c + (l * cm);
+        if (get_shot_board_value(board, num, shot) != WATER) {
             error.type = ErrShipIntersect;
             error.ship = ship;
             print_error(SHIP_PLACE_ERR, __FILE__, __LINE__);
@@ -162,7 +172,12 @@ Error validate_ship_placement(char **board, int board_size, Ship &ship, int leng
     return error;
 }
 
-int handle_shots(GameLog &game, Connection &connect, Board &board, bool &next_shot) {
+int handle_shots(
+    GameLog &game,
+    Connection &connect,
+    Board &board,
+    bool &next_shot
+) {
     int status = 0;
     Shot shot1, shot2;
     shot1.ship_sunk_idx = -1;
@@ -171,17 +186,18 @@ int handle_shots(GameLog &game, Connection &connect, Board &board, bool &next_sh
     status = handle_shot_placement(game, connect, board, shot1, shot2);
     if (status) return status;
 
-    get_shot_value(game.player1.stats, shot1, board.board2);    
-    get_shot_value(game.player2.stats, shot2, board.board1);    
+    // Different players because it's the opponent's board.
+    calculate_shot_value(game.player1.stats, shot1, PLAYER_2, board);    
+    calculate_shot_value(game.player2.stats, shot2, PLAYER_1, board);    
 
-    shot1.ship_sunk_idx = find_dead_ship(game.player2, board.board2);
-    shot2.ship_sunk_idx = find_dead_ship(game.player1, board.board1);
+    shot1.ship_sunk_idx = find_dead_ship(game.player2, PLAYER_2, board);
+    shot2.ship_sunk_idx = find_dead_ship(game.player1, PLAYER_1, board);
 
     if ( shot1.ship_sunk_idx != -1 ) game.player1.stats.ships_killed++;
     if ( shot2.ship_sunk_idx != -1 ) game.player2.stats.ships_killed++;
 
-    if ( check_alive_ship(game.player1) == 0 || 
-         check_alive_ship(game.player2) == 0 ) next_shot = false;
+    if ( count_alive_ships(game.player1) == 0 || 
+         count_alive_ships(game.player2) == 0 ) next_shot = false;
     
     create_shot_return_msg(connect.player1.msg, shot1, shot2, game, next_shot);
 
@@ -195,7 +211,12 @@ int handle_shots(GameLog &game, Connection &connect, Board &board, bool &next_sh
     return status;
 }
 
-int handle_shot_placement(GameLog &game, Connection &connect, Board &board, Shot &shot1, Shot &shot2) {
+int handle_shot_placement(
+    GameLog &game,
+    Connection &connect,
+    Board &board,
+    Shot &shot1, Shot &shot2
+) {
     int status = 0;
 
     game.player1.error.type = recv_msg(connect.player1.desc, connect.player1.msg);
@@ -229,8 +250,13 @@ Error validate_shot_placement(int size, Shot &shot) {
     return error;
 }
 
-void get_shot_value(GameStats &stats, Shot &shot, char **opponent_board) {
-    BoardValue value = (BoardValue)opponent_board[shot.row][shot.col];
+void calculate_shot_value(
+    GameStats &stats,
+    Shot &shot,
+    PlayerNum opponent,
+    Board &board
+) {
+    BoardValue value = get_shot_board_value(board, opponent, shot);
 
     switch (value) {
     case SHIP:
@@ -259,42 +285,29 @@ void get_shot_value(GameStats &stats, Shot &shot, char **opponent_board) {
         stats.duplicates++;
         break;
     }
-    store_shot_to_board(shot, opponent_board);
+    store_shot_board_value(board, opponent, shot);
     return;
 }
 
-int find_dead_ship(GamePlayer &player, char **board) {
+int find_dead_ship(GamePlayer &player, PlayerNum num, Board &board) {
     int dead_index = -1;
 
     for (int s = 0; s < (int)player.ships.size(); s++) {
         if ( !player.ships.at(s).alive ) continue;
 
-        int hit_count = 0;
-        int row = player.ships.at(s).row;
-        int col = player.ships.at(s).col;
-        int len = player.ships.at(s).len;
-        Direction dir = player.ships.at(s).dir;
-
-        for (int l = 0; l < len; l++) {
-            int r = row, c = col;
-            if ( dir == HORIZONTAL ) c += l;
-            else r += l;
-
-            if ( board[r][c] == HIT || board[r][c] == DUPLICATE_HIT )
-                hit_count++;
-        }
-
-        if ( hit_count == len ) {
+        Ship &ship = player.ships.at(s);
+        
+        if (board_ship_died(board, num, ship)) {
             dead_index = s;
-            player.ships.at(s).alive = false;
-            store_ship_to_board(player.ships.at(s), board, KILL);
+            ship.alive = false;
+            store_ship_board_value(board, num, ship, KILL);
             break;
         }
     }
     return dead_index;
 }
 
-int check_alive_ship(GamePlayer &player) {
+int count_alive_ships(GamePlayer &player) {
     int num_alive = 0;
     for (int s = 0; s < (int)player.ships.size(); s++) {
         if ( player.ships.at(s).alive ) num_alive++;
@@ -303,8 +316,8 @@ int check_alive_ship(GamePlayer &player) {
 }
 
 void calculate_winner(GameLog &game) {
-    int alive1 = check_alive_ship(game.player1);
-    int alive2 = check_alive_ship(game.player2);
+    int alive1 = count_alive_ships(game.player1);
+    int alive2 = count_alive_ships(game.player2);
 
     if ( alive1 == 0 && alive2 == 0 ) {
         game.player1.stats.result = TIE;

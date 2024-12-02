@@ -11,6 +11,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <assert.h>
 
 #define EXEC_DIR        "/ai_files/"
 #define PROTECT_DIR     "/protected/"
@@ -22,18 +23,22 @@
 
 #define MAX_MSG_SIZE 256
 #define MAX_NAME_SIZE 64
+#define MAX_LIVES 3
+#define MIN_LIVES 0
+#define MAX_BOARD_SIZE 10
+#define MIN_BOARD_SIZE 3
 
-/// JSON MESSAGE KEYS -- used by the client and server to create and parse messages
+/// JSON MESSAGE KEYS -- used by the client & server to create & parse messages
 #define MESSAGE_TYPE_KEY    "mt"
 #define PLAYER_NUM_KEY      "pn"
 #define AI_NAME_KEY         "ai"    // also used by the logger
 #define AUTHOR_NAMES_KEY    "au"    // also used by the logger
 #define BOARD_SIZE_KEY      "bs"    // also used by the logger
-#define LEN_KEY             "l"     // also used by the logger
-#define ROW_KEY             "r"     // also used by the logger
-#define COL_KEY             "c"     // also used by the logger
-#define DIR_KEY             "d"     // also used by the logger
-#define VALUE_KEY           "v"     // also used by the logger
+#define LEN_KEY             "l"
+#define ROW_KEY             "r"
+#define COL_KEY             "c"
+#define DIR_KEY             "d"
+#define VALUE_KEY           "v"
 #define PLAYER_1_KEY        "p1"    // also used by the logger
 #define PLAYER_2_KEY        "p2"    // also used by the logger
 #define SHIP_KEY            "sp"
@@ -67,8 +72,8 @@
 #define SHIPS_KEY           "sps"
 #define SHOTS_KEY           "sts"
 #define STATS_KEY           "sta"
-#define INDEX_SHIP_KEY      "sid"
 #define PLAYED_KEY          "pd"
+#define BYE_IDX_KEY         "bye"
 
 using namespace std;
 
@@ -108,7 +113,9 @@ enum ErrorType {
     ErrShipLength, ErrShipOffBoard, ErrShipIntersect, ErrShotOffBoard,
 };
 
-/// @brief Number value for different players. This value is passed to the player through start match message. This is important when passing messages.
+/// @brief Number value for different players. This value is passed to
+/// the player through start match message. This is important when
+/// passing messages.
 enum PlayerNum {
     PLAYER_1 = 1, PLAYER_2 = 2,
 };
@@ -131,7 +138,8 @@ enum BoardValue : char {
     DUPLICATE_KILL = 36,
 };
 
-/// @brief Executable values. One is for display, the other is teh full path to the executable.
+/// @brief Executable values. One is for display, the other is the
+/// full path to the executable.
 struct Executable {
     string file_name;
     string exec;
@@ -139,7 +147,8 @@ struct Executable {
 
 /// @brief Type of display for a match chosen by user.
 enum MatchDisplayType {
-    /// @brief Display the last game (default). Also the only option for a contest display.
+    /// @brief Display the last game (default). Also the option used to
+    /// display contest matches.
     LAST,
     /// @brief Display every. single. game. (bad).
     ALL,
@@ -206,18 +215,18 @@ enum GameResult : char {
 
 /// @brief Struct used to store ship info.
 struct Ship {
-    int row;
-    int col;
-    int len;
+    int8_t row;
+    int8_t col;
+    int8_t len;
     bool alive;
     Direction dir;
 };
 
 /// @brief Struct used to store shot info.
 struct Shot {
-    int row;
-    int col;
-    int ship_sunk_idx;  // NOTE: Optional value used only by logs.
+    int8_t row;
+    int8_t col;
+    int8_t ship_sunk_idx;  // NOTE: Optional value used only by logs.
     BoardValue value;
 };
 
@@ -295,6 +304,7 @@ struct ContestStats {
 /// @brief Data to store for each player, per contest.
 struct ContestPlayer {
     int lives;
+    int last_bye_round;
     bool played;
     string ai_name;
     string author_name;
@@ -323,6 +333,7 @@ struct ContestMatch {
 /// @brief Data about each round of contests per match.
 struct ContestRound {
     vector<ContestMatch> matches;
+    int bye_idx;
 };
 
 /// @brief Data about the contest.

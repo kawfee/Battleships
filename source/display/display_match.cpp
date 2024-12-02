@@ -20,7 +20,6 @@ void display_match_with_options(MatchLog &match, MatchOptions &options, int row)
 
         Board board = create_boards(match.board_size);
         display_match(info, match, board);
-        delete_boards(board);
 }
 
 void display_match(DisplayInfo &info, MatchLog &match, Board &board) {
