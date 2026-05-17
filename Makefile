@@ -1,42 +1,112 @@
-.PHONY: default all run clean_controller player clean_player clean
+.SUFFIXES:
+.SUFFIXES: .cpp .o
 
-CC = g++
-CFLAGS = -g -Wall -Wextra -Werror -O3
+# Default Compilation rules
+CXX = g++
+PLAYER_CXXFLAGS = -g -static -Wall -Wextra
+RELEASE_CXXFLAGS = -static -Wall -Wextra -O3
+DEBUG_CXXFLAGS = -g $(RELEASE_CXXFLAGS) -Werror
 
-obj_files = source/game_logic.o	\
-			source/message.o 	\
-			source/server.o 	\
-			source/board.o 		\
-			source/display.o 	\
-			source/conio.o 		\
-			source/logger.o 	\
-			source/questions.o
+# source directory info
+src_dir = source/
+server_dir = $(src_dir)server/
+logic_dir = $(src_dir)logic/
+display_dir = $(src_dir)display/
 
+# source file info
+srcs =	$(wildcard $(server_dir)*.cpp) \
+		$(wildcard $(logic_dir)*.cpp)  \
+		$(wildcard $(display_dir)*.cpp)
+objs =	$(patsubst %.cpp, %.o, $(srcs))
+
+# ai directory info
+ai_dir = ai_files/
+protect_dir = $(ai_dir)protected/
+
+# protected file info
+player_file = 	$(protect_dir)Player.cpp
+player_obj =	$(protect_dir)Player.o
+
+# ai file info
+ai_srcs =	$(wildcard $(ai_dir)*.cpp)
+ai_execs =	$(patsubst %.cpp, %, $(ai_srcs))
+
+.PHONY: default
 default: all
 
-all: controller player
+.PHONY: all
+# the default, no player optimization
+all: CXXFLAGS = $(DEBUG_CXXFLAGS)
+all: run
 
-run: controller
+.PHONY: contest
+# a contest, build players with optimization flags
+contest: CXXFLAGS = $(RELEASE_CXXFLAGS)
+contest: PLAYER_CXXFLAGS = $(RELEASE_CXXFLAGS)
+contest: clean run
+
+.PHONY: run
+run: build
+	@echo "running controller"
 	@./controller
 
-controller: $(obj_files)
-	@echo "\tbuilding $@"
-	@$(CC) $(CFLAGS) -o $@ controller.cpp $(obj_files)
+.PHONY: build
+build: controller player
 
-clean_controller:
-	@cd source; make clean; cd ..;
+# controller and source binaries
+controller: $(objs)
+	@echo "building $@"
+	@$(CXX) $(CXXFLAGS) -o $@ controller.cpp $(objs)
 
-$(obj_files):
-	@echo "\n### Source ###\n"
-	@cd source; make all; cd ..;
 
-player:
-	@echo "\n### Players ###\n"
-	@cd AI_Files; make all; cd ..;
+$(src_dir)%.o: $(src_dir)%.cpp
+	@echo "building $@"
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
 
-clean_player:
-	@cd AI_Files; make clean; cd ..;
+# normal players
+.PHONY: player
+player: CXXFLAGS = $(PLAYER_CXXFLAGS)
+player: $(player_obj) $(ai_execs)
 
+$(player_obj): $(player_file)
+	@echo "building $@"
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+$(ai_dir)%: $(ai_dir)%.cpp $(player_obj)
+	@echo "building $@"
+	@$(CXX) $(CXXFLAGS) -o $@ $< $(player_obj)
+
+.PHONY: options
+options: example-options.json
+	@echo "creating options.json"
+	@cp example-options.json options.json
+
+
+# cleanup
+.PHONY: clean
 clean: clean_controller clean_player
-	rm -f controller battleships.socket logs/match_log.json logs/contest_log.json
+
+.PHONY: clean_controller
+clean_controller:
+	@echo "removing controller compiled binary and battleships socket file"
+	@rm -f controller battleships.socket
+
+	@echo "removing source object files"
+	@rm -f $(objs)
+
+	@echo "removing logs"
+	@rm -f logs/match_log.json logs/contest_log.json
+
+.PHONY: clean_player
+clean_player:
+	@echo "removing Player class object file"
+	@rm -f $(player_obj)
+
+	@echo "removing player compiled binaries"
+	@rm -f $(ai_execs)
+
+.PHONY: clean_options
+clean_options:
+	@echo "removing options.json file"
+	@rm -f options.json
 
