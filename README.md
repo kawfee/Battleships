@@ -6,7 +6,6 @@ This project's goal is to handle a Battleships Contest between AIs through JSON 
 
 
 ## Repository Information
----
 
 Welcome to the Battleships Contest! This repository has all of the code
 to make a new AI and compete against other Battleship AI.
@@ -25,7 +24,6 @@ to make a new AI and compete against other Battleship AI.
 
 
 ## Install
----
 
 To install the battleships project:
 - Download this repo to a Linux computer (matt, lab machine, or personal).
@@ -35,7 +33,6 @@ To install the battleships project:
 
 
 ## Usage
----
 
 To use the battleships project:
 - After making changes to your AI, run `make` to compile your code and run the controller. You can also do `make run` or `./controller`.
@@ -47,12 +44,13 @@ To use the battleships project:
     - Use this in the development of your AI.
 - `Run Contest` -- Plays a contest between all available AI.
     - More than likely, you won't have to use this unless you are Dr. Brandle.
-- `Replay Logs` -- Replays a log file for you.
-    - Replays log files from either the last match or contest played.
+- `Replay Test` -- Replays a match log file for you.
+    - Replays the log file from the last match played.
+- `Replay Test` -- Replays a contest log file for you.
+    - Replays the log file from the last contest played.
 
 
 ## How to Create a new C++ or Python AI:
----
 
 - Copy or rename the `player_example.cpp` and `player_example.h` for C++, or `player_example.py` for Python.
 - Replace the default `AI_NAME` variable with your AI's name.
@@ -84,7 +82,6 @@ To use the battleships project:
 
 
 ## Error Codes and potential issues:
----
 
 | Code(s) | Potential Reasons                                       | Potential Fixes                                                                  |
 | ------- | ------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -101,7 +98,6 @@ To use the battleships project:
 
 
 ## Debugging an AI:
----
 
 There is a debug mode for the controller that disables message timeouts. This can be accessed by adding a `-d` or `--debug` to the controller's arguments.
 > **Example:** `./controller --debug`
@@ -130,7 +126,6 @@ There is a debug mode for the controller that disables message timeouts. This ca
 
 
 ## How to Create a new AI in a language of your choice
----
 
 ### For a language to be compatible with this project, it must:
 - Support JSON and Unix Domain Sockets for the protocol.
