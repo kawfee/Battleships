@@ -3,14 +3,17 @@
 .obsidian/
 
 # project directories
-ai_files/
 !ai_files/protected/
+!ai_files/*.{cpp,h}
+ai_files/
 logs/
 __pycache__/
 
 # project binaries
 *.o
+*.a
 controller
+battleships
 
 # project files
 options.json
