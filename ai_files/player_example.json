@@ -1,0 +1,8 @@
+{
+    "exampleString": "Hello World!\n",
+    "exampleBoolean": true,
+    "subsection1": {
+        "exampleNumber1": 1.5,
+        "exampleNumber2": 3
+    }
+}
