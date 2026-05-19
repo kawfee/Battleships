@@ -8,9 +8,7 @@
 #ifndef PLAYER_EXAMPLE_H
 #define PLAYER_EXAMPLE_H
 
-#include <iostream>
 #include <fstream>
-#include <string>
 #include "protected/Player.h"
 
 using namespace std;

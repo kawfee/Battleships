@@ -12,7 +12,7 @@
 #define AI_NAME "Player Example C++"
 
 // Defines the name of the bot's settings file.
-#define AI_SETTINGS_FILEPATH "./AI_Files/player_example.json"
+#define AI_SETTINGS_FILEPATH "./ai_files/player_example.json"
 
 // Write your name(s) or team name here. Please don't make it more than 64 bytes.
 #define AUTHOR_NAMES "Example Team/Author Name"
