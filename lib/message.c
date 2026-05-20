@@ -36,18 +36,6 @@ typedef enum {
     MESSAGE_MATCH_OVER,
 } BShip_MessageType;
 
-void BShip_Message_Deallocate(BShip_Message *message)
-{
-    if (message == NULL || message->json == NULL)
-    {
-        return;
-    }
-
-    free(message->json);
-    message->json = NULL;
-    message->length = 0;
-}
-
 BShip_ErrorType BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, char *author_names)
 {
     assert(message.json != NULL);
@@ -95,9 +83,9 @@ on_error:
     return ERROR_INVALID_HELLO_MESSAGE;
 }
 
-BShip_Message BShip_Message_SetupMatch_Create(uint8_t board_size, BShip_PlayerNum player_num)
+void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size, BShip_PlayerNum player_num)
 {
-    BShip_Message message = {0};
+    assert(message != NULL);
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
 
@@ -109,15 +97,20 @@ BShip_Message BShip_Message_SetupMatch_Create(uint8_t board_size, BShip_PlayerNu
     yyjson_mut_obj_add_int(doc, root, BOARD_SIZE_KEY, board_size);
     yyjson_mut_obj_add_int(doc, root, PLAYER_NUM_KEY, player_num);
 
-    message.json = yyjson_mut_write(doc, 0, &message.length);
+    size_t length = 0;
+    char *json = yyjson_mut_write(doc, 0, &length);
+    assert(length <= MESSAGE_SIZE_MAX);
 
+    strncpy(message->json, json, length);
+    message->length = length;
+
+    free(json);
     yyjson_mut_doc_free(doc);
-    return message;
 }
 
-BShip_Message BShip_Message_PlaceShips_Create(uint8_t *ship_lengths)
+void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengths)
 {
-    BShip_Message message = {0};
+    assert(message != NULL);
     assert(ship_lengths != NULL);
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
@@ -136,10 +129,15 @@ BShip_Message BShip_Message_PlaceShips_Create(uint8_t *ship_lengths)
         yyjson_mut_arr_add_int(doc, len_arr, length);
     }
 
-    message.json = yyjson_mut_write(doc, 0, &message.length);
+    size_t length = 0;
+    char *json = yyjson_mut_write(doc, 0, &length);
+    assert(length <= MESSAGE_SIZE_MAX);
 
+    strncpy(message->json, json, length);
+    message->length = length;
+
+    free(json);
     yyjson_mut_doc_free(doc);
-    return message;
 }
 
 BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, uint8_t *ship_lengths, BShip_Ship *ships)
@@ -246,11 +244,10 @@ on_error:
     return ERROR_INVALID_SHOT_TAKEN_MESSAGE;
 }
 
-BShip_Message BShip_Message_ShotResult_Create(BShip_Shot shot1, BShip_Shot shot2,
+void BShip_Message_ShotResult_Create(BShip_Message *message, BShip_Shot shot1, BShip_Shot shot2,
         BShip_Ship *ai1_ship_killed, BShip_Ship *ai2_ship_killed, bool next_shot)
 {
-    BShip_Message message = {0};
-
+    assert(message != NULL);
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
@@ -296,24 +293,33 @@ BShip_Message BShip_Message_ShotResult_Create(BShip_Shot shot1, BShip_Shot shot2
 
     yyjson_mut_obj_add_bool(doc, root, NEXT_SHOT_KEY, next_shot);
 
-    message.json = yyjson_mut_write(doc, 0, &message.length);
+    size_t length = 0;
+    char *json = yyjson_mut_write(doc, 0, &length);
+    assert(length <= MESSAGE_SIZE_MAX);
 
+    strncpy(message->json, json, length);
+    message->length = length;
+
+    free(json);
     yyjson_mut_doc_free(doc);
-    return message;
 }
 
-BShip_Message BShip_Message_MatchOver_Create()
+void BShip_Message_MatchOver_Create(BShip_Message *message)
 {
-    BShip_Message message = {0};
-
+    assert(message != NULL);
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
 
     yyjson_mut_obj_add_int(doc, root, MESSAGE_TYPE_KEY, MESSAGE_MATCH_OVER);
 
-    message.json = yyjson_mut_write(doc, 0, &message.length);
+    size_t length = 0;
+    char *json = yyjson_mut_write(doc, 0, &length);
+    assert(length <= MESSAGE_SIZE_MAX);
 
+    strncpy(message->json, json, length);
+    message->length = length;
+
+    free(json);
     yyjson_mut_doc_free(doc);
-    return message;
 }

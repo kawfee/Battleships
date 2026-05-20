@@ -13,6 +13,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#define BSHIP_ARENA_BLOCK_SIZE_DEFAULT 4096
 #define BSHIP_BOARD_SIZE_MAX 10
 #define BSHIP_BOARD_SIZE_MIN 3
 #define BSHIP_GAMES_PER_MATCH_MAX 10000
@@ -61,6 +62,30 @@ typedef enum {
     BSHIP_TIE,
 } BShip_GameResult;
 
+typedef struct BShip_ArenaBlock BShip_ArenaBlock;
+
+struct BShip_ArenaBlock {
+    BShip_ArenaBlock *previous;
+    size_t capacity;
+    size_t offset;
+
+    // NOTE(mattg): this must be the last element in order to point at the memory after the struct.
+    uint8_t memory[];
+};
+
+typedef struct {
+    BShip_ArenaBlock *block;
+    size_t offset;
+} BShip_ArenaMark;
+
+typedef struct {
+    BShip_ArenaBlock *first;
+    BShip_ArenaBlock *current;
+} BShip_Arena;
+
+void BShip_Arena_Initialize(BShip_Arena *arena, size_t capacity);
+void BShip_Arena_Destroy(BShip_Arena *arena);
+
 typedef struct {
     uint8_t row;
     uint8_t column;
@@ -100,6 +125,7 @@ typedef struct {
 typedef struct {
     char *json;
     size_t length;
+    size_t capacity;
 } BShip_Message;
 
 typedef enum {
@@ -127,6 +153,7 @@ typedef struct {
     BShip_Shot shot;
     int8_t *message;
     int32_t message_length;
+    int32_t exit_status;
 } BShip_Error;
 
 typedef struct {
@@ -187,8 +214,8 @@ typedef enum {
 void BShip_RunContest(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug);
 
-BShip_MatchData BShip_RunMatch(const char *socket_path, const char *ai1_path, const char *ai2_path,
-    uint8_t board_size, uint32_t games_per_match, bool debug);
+BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
+    const char *ai1_path, const char *ai2_path, uint8_t board_size, uint32_t games_per_match, bool debug);
 
 #endif // BATTLESHIPSLIB_H
 

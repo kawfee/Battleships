@@ -8,20 +8,28 @@
 #include "platforms/platform.h"
 #include "message.c"
 
-const uint8_t BShip_BoardSize_To_ShipLengths[BSHIP_BOARD_SIZE_MAX+1][BSHIP_SHIP_COUNT_MAX+1] = {
-    [3] = {2, 1, 1},
-    [4] = {3, 2, 1, 1},
-    [5] = {3, 3, 2, 2},
-    [6] = {3, 3, 2, 2, 2},
-    [7] = {4, 3, 3, 2, 2},
-    [8] = {4, 4, 3, 3, 3},
-    [9] = {5, 4, 4, 3, 3},
-    [10] = {5, 4, 4, 3, 3, 3},
-};
-
-BShip_GameData BShip_RunGame(BShip_Connection *conn, BShip_AIConnection *ai1_conn, BShip_AIConnection *ai2_conn)
+BShip_GameData BShip_RunGame(BShip_Connection *conn, BShip_AIConnection *ai1_conn, BShip_AIConnection *ai2_conn, uint8_t board_size)
 {
-    BShip_GameData game_data = {0};
+    assert(conn != NULL);
+    assert(ai1_conn != NULL);
+    assert(ai2_conn != NULL);
+    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
+    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
+    BShip_GameData game = {0};
 
-    return game_data;
+    // uint8_t ship_lengths[] = BShip_BoardSize_To_Ship_Lengths[board_size];
+    //
+    // BShip_Message place_ships = BShip_Message_PlaceShip_Create(ship_lengths);
+    // game.ai1.error.type = BShip_AIConnection_Send(ai1_conn, place_ships);
+    // game.ai2.error.type = BShip_AIConnection_Send(ai2_conn, place_ships);
+    // if (game.ai1.error.type != ERROR_SUCCESS || game.ai2.error.type != ERROR_SUCCESS)
+    // {
+    //     return game;
+    // }
+    //
+    // BShip_Message ai1_recv_buffer = {
+    //     .json = 
+    // };
+
+    return game;
 }

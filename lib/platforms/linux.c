@@ -26,53 +26,154 @@
 #define BSHIP_TIMEOUT_MICROSECONDS 500000 // 0.5 seconds
 
 struct BShip_Connection {
-    int32_t socket_desc;
     struct sockaddr_un socket_address;
+    int32_t socket_desc;
 };
 
 struct BShip_AIConnection {
     int32_t socket_desc;
+    int32_t exit_status;
     pid_t process_id;
 };
 
-BShip_Connection *BShip_Connection_Allocate(void)
+// static inline size_t BShip_Arena_AlignForward(size_t ptr, size_t alignment)
+// {
+//     size_t modulo = ptr & (alignment - 1);
+//
+//     if (modulo != 0)
+//     {
+//         ptr += alignment - modulo;
+//     }
+//     return p;
+// }
+
+static inline BShip_ArenaBlock *BShip_ArenaBlock_Allocate(size_t size)
 {
-    BShip_Connection *conn = malloc(sizeof(BShip_Connection));
-    if (conn == NULL) {
+    BShip_ArenaBlock *block = malloc(size);
+    if (block == NULL)
+    {
         PRINT_ERROR(strerror(errno));
+        return block;
+    }
+    block->previous = NULL;
+    block->capacity = size - sizeof(BShip_ArenaBlock);
+    block->offset = 0;
+    return block;
+}
+
+void BShip_Arena_Initialize(BShip_Arena *arena, size_t capacity)
+{
+    if (arena == NULL)
+    {
+        return;
+    }
+    capacity += sizeof(BShip_ArenaBlock);
+    size_t size = BSHIP_ARENA_BLOCK_SIZE_DEFAULT;
+    while (capacity > size)
+    {
+        size += size;
+    }
+    BShip_ArenaBlock *block = BShip_ArenaBlock_Allocate(size);
+    arena->first = block;
+    arena->current = block;
+}
+
+void BShip_Arena_Destroy(BShip_Arena *arena)
+{
+    if (arena == NULL)
+    {
+        return;
+    }
+    BShip_ArenaBlock *block = arena->current;
+    while (block != NULL)
+    {
+        BShip_ArenaBlock *next = block->previous;
+        free(block);
+        block = next;
+    }
+    arena->first = NULL;
+    arena->current = NULL;
+}
+
+void *BShip_Arena_Push(BShip_Arena *arena, size_t size)
+{
+
+    if (arena == NULL || arena->first == NULL || arena->current == NULL)
+    {
         return NULL;
     }
-    memset(conn, 0, sizeof(BShip_Connection));
 
-    return conn;
-}
-
-void BShip_Connection_Deallocate(BShip_Connection *conn)
-{
-    if (conn != NULL)
+    size_t space = arena->current->capacity - arena->current->offset;
+    if (space >= size)
     {
-        free(conn);
+        void *memory = &arena->current->memory[arena->current->offset];
+        arena->current->offset += size;
+        return memory;
     }
-}
-
-BShip_AIConnection *BShip_AIConnection_Allocate(void)
-{
-    BShip_AIConnection *ai_conn = malloc(sizeof(BShip_AIConnection));
-    if (ai_conn == NULL) {
-        PRINT_ERROR(strerror(errno));
-        return NULL;
-    }
-    memset(ai_conn, 0, sizeof(BShip_AIConnection));
-
-    return ai_conn;
-}
-
-void BShip_AIConnection_Deallocate(BShip_AIConnection *ai_conn)
-{
-    if (ai_conn != NULL)
+    size_t new_block_capacity = arena->current->capacity * 2;
+    while ((size + sizeof(BShip_ArenaBlock)) > new_block_capacity)
     {
-        free(ai_conn);
+        new_block_capacity += new_block_capacity;
     }
+    BShip_ArenaBlock *block = BShip_ArenaBlock_Allocate(new_block_capacity);
+    if (block == NULL)
+    {
+        return block;
+    }
+    block->previous = arena->current;
+    block->offset += size;
+    arena->current = block;
+    return block->memory;
+}
+
+void BShip_Arena_Reset(BShip_Arena *arena)
+{
+    assert(arena != NULL);
+    BShip_ArenaBlock *block = arena->current;
+    while (block != NULL && arena->first != block)
+    {
+        BShip_ArenaBlock *next = block->previous;
+        free(block);
+        block = next;
+    }
+    arena->current = arena->first;
+    arena->first->offset = 0;
+}
+
+BShip_ArenaMark BShip_ArenaMark_Get(BShip_Arena *arena)
+{
+    assert(arena != NULL);
+    BShip_ArenaMark mark = {
+        .block = arena->current,
+        .offset = arena->current->offset,
+    };
+    return mark;
+}
+
+void BShip_Arena_Rollback(BShip_Arena *arena, BShip_ArenaMark mark)
+{
+    assert(arena != NULL);
+    assert(mark.block != NULL);
+
+    BShip_ArenaBlock *block = arena->current;
+    while (block != mark.block)
+    {
+        BShip_ArenaBlock *previous = block->previous;
+        free(block);
+        block = previous;
+    }
+    block->offset = mark.offset;
+    arena->current = block;
+}
+
+BShip_Connection *BShip_Connection_Allocate(BShip_Arena *arena)
+{
+    return BShip_Arena_Push(arena, sizeof(BShip_Connection));
+}
+
+BShip_AIConnection *BShip_AIConnection_Allocate(BShip_Arena *arena)
+{
+    return BShip_Arena_Push(arena, sizeof(BShip_AIConnection));
 }
 
 int32_t BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bool debug)
@@ -239,43 +340,39 @@ BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, con
     return ERROR_SUCCESS;
 }
 
-void BShip_AIConnection_WaitProcess(BShip_AIConnection *ai_conn)
+bool BShip_AIConnection_WaitProcess(BShip_AIConnection *ai_conn)
 {
     if (ai_conn == NULL)
     {
-        return;
+        return false;
     }
     if (ai_conn->process_id == -1) {
         ai_conn->process_id = 0;
-        return;
+        return false;
     }
     struct timeval now, end = {0};
     gettimeofday(&now, NULL);
     end.tv_sec = now.tv_sec + BSHIP_TIMEOUT_SECONDS;
     end.tv_usec = now.tv_usec + BSHIP_TIMEOUT_MICROSECONDS;
 
-    bool exited = false;
     int status = 0;
     do
     {
         waitpid(ai_conn->process_id, &status, WNOHANG);
         if (WIFEXITED(status))
         {
-            int exit_status = WEXITSTATUS(status);
-            if (exit_status != 0)
+            ai_conn->exit_status = WEXITSTATUS(status);
+            if (ai_conn->exit_status != 0)
             {
-                PRINT_ERROR_F("AI exited with non-zero status code: %d", exit_status);
+                PRINT_ERROR_F("AI exited with non-zero status code: %d", ai_conn->exit_status);
             }
-            exited = true;
+            return true;
             break;
         }
         gettimeofday(&now, NULL);
-    } while (!exited && now.tv_sec <= end.tv_sec && now.tv_usec <= end.tv_usec);
+    } while (now.tv_sec <= end.tv_sec && now.tv_usec <= end.tv_usec);
 
-    if (!exited)
-    {
-        BShip_AIConnection_KillProcess(ai_conn);
-    }
+    return false;
 }
 
 void BShip_AIConnection_KillProcess(BShip_AIConnection *ai_conn)
@@ -287,17 +384,16 @@ void BShip_AIConnection_KillProcess(BShip_AIConnection *ai_conn)
     if (ai_conn->process_id != -1 && ai_conn->process_id != 0)
     {
         kill(ai_conn->process_id, SIGKILL);
-        int status = 0;
-        waitpid(ai_conn->process_id, &status, 0);
+        waitpid(ai_conn->process_id, NULL, 0);
     }
     ai_conn->process_id = 0;
 }
 
-BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, uint8_t *message, uint32_t size)
+BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, BShip_Message message)
 {
     assert(ai_conn != NULL);
-    assert(message != NULL);
-    if (send(ai_conn->socket_desc, message, size, 0) == -1) // TODO(mattg): test with MSG_DONTWAIT for non-blocking I/O
+    assert(message.json != NULL);
+    if (send(ai_conn->socket_desc, message.json, message.length, 0) == -1) // TODO(mattg): test with MSG_DONTWAIT for non-blocking I/O
     {
         PRINT_ERROR(strerror(errno));
         return ERROR_SEND_FAILED;
@@ -305,12 +401,13 @@ BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, uint8_t *me
     return ERROR_SUCCESS;
 }
 
-BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, uint8_t *message, uint32_t size)
+BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, BShip_Message *message)
 {
     assert(ai_conn != NULL);
     assert(message != NULL);
-    memset(message, 0, size);
-    int bytes_received = recv(ai_conn->socket_desc, message, size, 0);
+    assert(message->json != NULL);
+    memset(message->json, 0, message->capacity);
+    int bytes_received = recv(ai_conn->socket_desc, message->json, message->capacity, 0);
     switch (bytes_received)
     {
     case -1:
@@ -323,6 +420,7 @@ BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, uint8_t 
         return ERROR_RECEIVE_FAILED;
         break;
     default:
+        message->length = bytes_received;
         break;
     }
     return ERROR_SUCCESS;
