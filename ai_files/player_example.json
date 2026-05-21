@@ -1,8 +1,8 @@
 {
-    "exampleString": "Hello World!\n",
-    "exampleBoolean": true,
+    "introText": "Hello World!\n",
+    "printText": true,
     "subsection1": {
-        "exampleNumber1": 1.5,
-        "exampleNumber2": 3
+        "variableA": 1.5,
+        "variableB": 3
     }
 }

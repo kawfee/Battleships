@@ -2,7 +2,7 @@
  * @file player_example.h
  * @author Matthew Getgen, Luke Staritz
  * @brief The starter file for making your own AI.
- * @date 2026-05-19
+ * @date 2026-05-21
 */
 
 #ifndef PLAYER_EXAMPLE_H
@@ -74,6 +74,9 @@ class PlayerExample: public Player {
 
         /// @brief Loads the settings JSON datastructure from the defined path.
         void loadSettingsFromFile();
+
+        /// @brief Example of imported JSON datastructure usage.
+        void exampleJSON();
     private:
 
         // If you want to track other boards, make sure to add them to
