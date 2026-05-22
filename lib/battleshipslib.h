@@ -14,30 +14,30 @@
 #include <stdio.h>
 
 #define BSHIP_ARENA_BLOCK_SIZE_DEFAULT 4096
-#define BSHIP_BOARD_SIZE_MAX 10
-#define BSHIP_BOARD_SIZE_MIN 3
+#define BSHIP_BOARD_SIZE_MIN 5
+#define BSHIP_BOARD_SIZE_MAX 15
 #define BSHIP_GAMES_PER_MATCH_MAX 10000
 #define BSHIP_GAMES_PER_MATCH_MIN 1
-#define BSHIP_SHIP_COUNT_MAX 6
-#define BSHIP_SHIP_LENGTH_MAX 5
-#define BSHIP_SHIP_LENGTH_MIN 1
+#define BSHIP_SHIP_COUNT_MIN 3
+#define BSHIP_SHIP_COUNT_MAX 7
+#define BSHIP_SHIP_LENGTH_MAX 6
 #define BSHIP_SHOT_LENGTH_MAX (BSHIP_BOARD_SIZE_MAX * BSHIP_BOARD_SIZE_MAX)
 
 #define PRINT_ERROR(message) \
     do { \
         fprintf(stderr, "[%s:%d] ERROR: %s\n", __FILE__, __LINE__, message); \
         fflush(stderr); \
-    } while (0);
+    } while (0)
 
 #define PRINT_ERROR_F(fmt, ...) \
     do { \
         fprintf(stderr, "[%s:%d] ERROR: " fmt "\n", __FILE__, __LINE__, __VA_ARGS__); \
         fflush(stderr); \
-    } while (0);
+    } while (0)
 
 typedef enum {
-    BSHIP_PLAYER_1,
-    BSHIP_PLAYER_2,
+    BSHIP_PLAYER_1 = 1,
+    BSHIP_PLAYER_2 = 2,
 } BShip_PlayerNum;
 
 typedef enum {
@@ -91,7 +91,6 @@ typedef struct {
     uint8_t column;
     uint8_t length;
     BShip_Direction direction;
-    bool alive;
 } BShip_Ship;
 
 typedef struct {
@@ -99,11 +98,6 @@ typedef struct {
     uint32_t length;
     uint32_t capacity;
 } BShip_ShipArray;
-
-typedef struct {
-    uint32_t start_index;
-    uint32_t length;
-} BShip_ShipArraySlice;
 
 typedef struct {
     uint8_t row;
@@ -118,15 +112,16 @@ typedef struct {
 } BShip_ShotArray;
 
 typedef struct {
-    uint32_t start_index;
-    uint32_t length;
-} BShip_ShotArraySlice;
-
-typedef struct {
     char *json;
     size_t length;
     size_t capacity;
 } BShip_Message;
+
+typedef struct {
+    uint8_t *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_U8Array;
 
 typedef enum {
     ERROR_SUCCESS,
@@ -137,14 +132,15 @@ typedef enum {
     ERROR_SEND_FAILED,
     ERROR_RECEIVE_FAILED,
     // Message errors
-    ERROR_INVALID_HELLO_MESSAGE,
-    ERROR_INVALID_SHIPS_PLACED_MESSAGE,
-    ERROR_INVALID_SHOT_TAKEN_MESSAGE,
+    ERROR_MESSAGE_HELLO_INVALID,
+    ERROR_MESSAGE_SHIPS_PLACED_INVALID,
+    ERROR_MESSAGE_SHOT_TAKEN_INVALID,
     // Logic Errors
-    ERROR_INVALID_SHIP_LENGTH,
+    ERROR_SHIP_LENGTH_INVALID,
     ERROR_SHIP_OFF_BOARD,
     ERROR_SHIP_OVERLAP,
     ERROR_SHOT_OFF_BOARD,
+    ERROR_SHOT_DUPLICATE,
 } BShip_ErrorType;
 
 typedef struct {
@@ -158,8 +154,10 @@ typedef struct {
 
 typedef struct {
     BShip_Error error;
-    BShip_ShipArraySlice ships;
-    BShip_ShotArraySlice shots;
+    BShip_ShipArray ships;
+    BShip_U8Array alive_ships;
+    BShip_U8Array dead_ships;
+    BShip_ShotArray shots;
     uint32_t num_board_shot;
     uint32_t hits;
     uint32_t misses;
@@ -183,8 +181,8 @@ typedef struct {
 
 typedef struct {
     BShip_Error error;
-    int8_t *ai_name;
-    int8_t *author_name;
+    char *name;
+    char *authors;
     uint32_t ai_name_length;
     uint32_t author_name_length;
     uint32_t wins;

@@ -13,11 +13,17 @@
 // NOTE(mattg): Also be sure to implement BShip_Arena_Initialize and BShip_Arena_Destroy.
 // They are exposed via the library header, which is why they aren't here.
 
+#define BSHIP_ARENA_PUSH(arena, type) \
+    ((type *)BShip_Arena_Push(arena, sizeof(type)))
+
+#define BSHIP_ARENA_PUSH_ARRAY(arena, type, count) \
+    ((type *)BShip_Arena_Push(arena, sizeof(type) * (count)))
+
 #define BSHIP_ARENA_TEMP_BEGIN(arena) \
-    BShip_ArenaMark __mark = BShip_ArenaMark_Get(arena);
+    BShip_ArenaMark __mark = BShip_ArenaMark_Get(arena)
 
 #define BSHIP_ARENA_TEMP_END(arena) \
-    BShip_Arena_Rollback(arena, __mark);
+    BShip_Arena_Rollback(arena, __mark)
 
 void *BShip_Arena_Push(BShip_Arena *arena, size_t size);
 

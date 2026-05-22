@@ -79,8 +79,9 @@ BShip_ErrorType BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, 
     yyjson_doc_free(doc);
     return ERROR_SUCCESS;
 on_error:
+    PRINT_ERROR_F("Invalid \"Hello\" message received: %s\n", message.json);
     yyjson_doc_free(doc);
-    return ERROR_INVALID_HELLO_MESSAGE;
+    return ERROR_MESSAGE_HELLO_INVALID;
 }
 
 void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size, BShip_PlayerNum player_num)
@@ -88,6 +89,8 @@ void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size,
     assert(message != NULL);
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
+    memset(message->json, 0, message->capacity);
+    message->length = 0;
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
@@ -108,10 +111,14 @@ void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size,
     yyjson_mut_doc_free(doc);
 }
 
-void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengths)
+void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengths, uint8_t ship_count)
 {
     assert(message != NULL);
     assert(ship_lengths != NULL);
+    assert(ship_count >= BSHIP_SHIP_COUNT_MIN);
+    assert(ship_count <= BSHIP_SHIP_COUNT_MAX);
+    memset(message->json, 0, message->capacity);
+    message->length = 0;
 
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
@@ -119,7 +126,7 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
 
     yyjson_mut_obj_add_int(doc, root, MESSAGE_TYPE_KEY, MESSAGE_PLACE_SHIPS);
     yyjson_mut_val *len_arr = yyjson_mut_obj_add_arr(doc, root, LEN_KEY);
-    for (uint8_t i = 0; i < BSHIP_SHIP_COUNT_MAX; i++)
+    for (uint8_t i = 0; i < ship_count; i++)
     {
         uint8_t length = ship_lengths[i];
         if (length == 0 || length > BSHIP_SHIP_LENGTH_MAX)
@@ -140,12 +147,15 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
     yyjson_mut_doc_free(doc);
 }
 
-BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, uint8_t *ship_lengths, BShip_Ship *ships)
+BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_ShipArray *ships, uint8_t ship_count)
 {
     assert(message.json != NULL);
     assert(message.length <= MESSAGE_SIZE_MAX);
-    assert(ship_lengths != NULL);
     assert(ships != NULL);
+    assert(ships->buffer != NULL);
+    assert(ships->capacity >= ship_count);
+    assert(ship_count >= BSHIP_SHIP_COUNT_MIN);
+    assert(ship_count <= BSHIP_SHIP_COUNT_MAX);
 
     yyjson_doc *doc = yyjson_read(message.json, message.length, 0);
     if (doc != NULL) goto on_error;
@@ -160,14 +170,11 @@ BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, uint8_t *
     yyjson_val *ships_obj = yyjson_obj_get(root, SHIP_KEY);
     if (!yyjson_is_arr(ships_obj)) goto on_error;
     size_t ships_obj_length = yyjson_arr_size(ships_obj);
-    if (ships_obj_length == 0 || ships_obj_length > BSHIP_SHIP_COUNT_MAX) goto on_error;
+    if (ships_obj_length != ship_count) goto on_error;
 
-    for (uint8_t i = 0; i < ships_obj_length; i++)
+    for (ships->length = 0; ships->length < ship_count; ships->length++)
     {
-        uint8_t ship_length = ship_lengths[i];
-        // returned ship lengths should have equaled expected ship lengths
-        if (ship_length == 0) goto on_error;
-        yyjson_val *ship_obj = yyjson_arr_get(ships_obj, i);
+        yyjson_val *ship_obj = yyjson_arr_get(ships_obj, ships->length);
         if (!yyjson_is_arr(ship_obj)) goto on_error;
         size_t ship_obj_length = yyjson_arr_size(ship_obj);
         if (ship_obj_length != 4) goto on_error;
@@ -190,17 +197,15 @@ BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, uint8_t *
         if (!yyjson_is_uint(direction_obj)) goto on_error;
         ship.direction = (BShip_Direction)yyjson_get_uint(direction_obj);
 
-        if (ship.length != ship_length) goto on_error;
-
-        ships[i] = ship;
+        ships->buffer[ships->length] = ship;
     }
 
     yyjson_doc_free(doc);
     return ERROR_SUCCESS;
 on_error:
-    if (doc != NULL)
+    PRINT_ERROR_F("Invalid \"Ships Placed\" message received: %s\n", message.json);
     yyjson_doc_free(doc);
-    return ERROR_INVALID_SHIPS_PLACED_MESSAGE;
+    return ERROR_MESSAGE_SHIPS_PLACED_INVALID;
 }
 
 BShip_ErrorType BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot *shot)
@@ -239,15 +244,18 @@ BShip_ErrorType BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot 
     yyjson_doc_free(doc);
     return ERROR_SUCCESS;
 on_error:
-    if (doc != NULL)
+    PRINT_ERROR_F("Invalid \"Shot Taken\" message received: %s\n", message.json);
     yyjson_doc_free(doc);
-    return ERROR_INVALID_SHOT_TAKEN_MESSAGE;
+    return ERROR_MESSAGE_SHOT_TAKEN_INVALID;
 }
 
 void BShip_Message_ShotResult_Create(BShip_Message *message, BShip_Shot shot1, BShip_Shot shot2,
         BShip_Ship *ai1_ship_killed, BShip_Ship *ai2_ship_killed, bool next_shot)
 {
     assert(message != NULL);
+    memset(message->json, 0, message->capacity);
+    message->length = 0;
+
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
@@ -307,6 +315,9 @@ void BShip_Message_ShotResult_Create(BShip_Message *message, BShip_Shot shot1, B
 void BShip_Message_MatchOver_Create(BShip_Message *message)
 {
     assert(message != NULL);
+    memset(message->json, 0, message->capacity);
+    message->length = 0;
+
     yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
