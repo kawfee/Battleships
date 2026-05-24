@@ -4,8 +4,6 @@ set -e
 
 MODE="${1:-debug}"
 
-LINK_MODE="${2:-static}"
-
 BUILD_DIR="build"
 
 YYJSON_DIR="vendor/yyjson/src"
@@ -43,7 +41,7 @@ case "$MODE" in
         YYJSON_OBJ="$BUILD_DIR/yyjson_release.o"
         ;;
     *)
-        echo "Usage: $0 [debug|release] [static|dynamic]"
+        echo "Usage: $0 [debug|release]"
         exit 1
         ;;
 esac
@@ -73,16 +71,4 @@ for file in $SRC; do
     OBJ="$OBJ $obj"
 done
 
-case "$LINK_MODE" in
-    static)
-        ar rcs battleshipslib.a $OBJ
-        ;;
-    dynamic)
-        $CC -shared -o battleshipslib.so $OBJ
-        ;;
-    *)
-        echo "Usage: $0 [debug|release] [static|dynamic]"
-        exit 1
-        ;;
-esac
-
+ar rcs battleshipslib.a $OBJ
