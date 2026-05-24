@@ -23,6 +23,7 @@ DEBUG_FLAGS=(
 RELEASE_FLAGS=(
     -Werror
     -O3
+    -march=native
     -flto
 )
 
@@ -39,7 +40,7 @@ case "$MODE" in
         ;;
 esac
 
-cd lib && ./build.sh "$MODE" static && cd ..
+cd lib && ./build.sh "$MODE" && cd ..
 
 $CC "${CFLAGS[@]}" main.c lib/battleshipslib.a -o battleships
 
