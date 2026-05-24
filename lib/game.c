@@ -1,7 +1,7 @@
 /**
  * @file game.c
  * @author Matthew Getgen
- * @brief All Logic specific to running a game.
+ * @brief Game state management and logic which is allocation-free and test-friendly.
  * @date 2026-05-23
  */
 
@@ -10,6 +10,7 @@
 
 #include "battleshipslib.h"
 
+// TODO(mattg): convert from double to float precision because we don't need double-level precision.
 uint8_t ShipCountMin_From_BoardSize(uint8_t board_size)
 {
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
