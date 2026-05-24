@@ -24,11 +24,6 @@ DEBUG_FLAGS=(
     -fsanitize=undefined
 )
 
-#define YYJSON_DISABLE_INC_READER 1
-#define YYJSON_DISABLE_UTILS 1
-#define YYJSON_DISABLE_NON_STANDARD 1
-#define YYJSON_DISABLE_UTF8_VALIDATION 1
-
 RELEASE_FLAGS=(
     -Werror
     -O3
@@ -65,7 +60,7 @@ if [ ! -f "$YYJSON_OBJ" ]; then
         -o "$YYJSON_OBJ"
 fi
 
-SRC="platforms/linux.c contest.c"
+SRC="platforms/linux.c runtime.c"
 OBJ="$YYJSON_OBJ"
 
 

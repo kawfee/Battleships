@@ -112,6 +112,15 @@ typedef struct {
 } BShip_ShotArray;
 
 typedef struct {
+    uint8_t *buffer;
+    uint8_t size;
+} BShip_Board;
+
+BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size);
+BShip_BoardValue BShip_Board_Get(BShip_Board board, uint8_t row, uint8_t column);
+void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_BoardValue value);
+
+typedef struct {
     char *json;
     size_t length;
     size_t capacity;
