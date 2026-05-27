@@ -176,7 +176,7 @@ BShip_AIConnection *BShip_AIConnection_Allocate(BShip_Arena *arena)
     return BShip_Arena_Push(arena, sizeof(BShip_AIConnection));
 }
 
-int32_t BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bool debug)
+bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bool debug)
 {
     assert(conn != NULL);
     assert(socket_path != NULL);
@@ -223,10 +223,10 @@ int32_t BShip_Connection_Create(BShip_Connection *conn, const char *socket_path,
         }
     }
 
-    return 0;
+    return true;
 on_error:
     BShip_Connection_Close(conn);
-    return -1;
+    return false;
 }
 
 void BShip_Connection_Close(BShip_Connection *conn)

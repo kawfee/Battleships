@@ -90,14 +90,14 @@ BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
     }
 
     BShip_Message ai1_message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_SIZE_MAX+1),
+        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
         .length = 0,
-        .capacity = MESSAGE_SIZE_MAX,
+        .capacity = BSHIP_MESSAGE_SIZE_MAX,
     };
     BShip_Message ai2_message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_SIZE_MAX+1),
+        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
         .length = 0,
-        .capacity = MESSAGE_SIZE_MAX,
+        .capacity = BSHIP_MESSAGE_SIZE_MAX,
     };
     if (ai1_message.json == NULL || ai2_message.json == NULL)
     {
@@ -254,7 +254,7 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
         return match;
     }
 
-    if (BShip_Connection_Create(conn, socket_path, debug) == -1)
+    if (!BShip_Connection_Create(conn, socket_path, debug))
     {
         goto on_conn_create_error;
     }
@@ -279,10 +279,10 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     {
         goto on_conn_accept_error;
     }
-    match.ai1.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_NAME_SIZE_MAX+1);
-    match.ai1.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_NAME_SIZE_MAX+1);
-    match.ai2.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_NAME_SIZE_MAX+1);
-    match.ai2.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_NAME_SIZE_MAX+1);
+    match.ai1.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
+    match.ai1.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
+    match.ai2.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
+    match.ai2.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
     if (match.ai1.name == NULL || match.ai1.authors == NULL || match.ai2.name == NULL || match.ai2.authors == NULL)
     {
         goto on_conn_accept_error;
@@ -291,14 +291,14 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     {
         BSHIP_ARENA_TEMP_BEGIN(arena);
         BShip_Message ai1_message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_SIZE_MAX+1),
+        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
         .length = 0,
-        .capacity = MESSAGE_SIZE_MAX,
+        .capacity = BSHIP_MESSAGE_SIZE_MAX,
         };
         BShip_Message ai2_message = {
-            .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_SIZE_MAX+1),
+            .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
             .length = 0,
-            .capacity = MESSAGE_SIZE_MAX,
+            .capacity = BSHIP_MESSAGE_SIZE_MAX,
         };
         if (ai1_message.json == NULL || ai2_message.json == NULL)
         {
@@ -352,9 +352,9 @@ on_match_over:
     {
         BSHIP_ARENA_TEMP_BEGIN(arena);
         BShip_Message message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, MESSAGE_SIZE_MAX+1),
+        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
         .length = 0,
-        .capacity = MESSAGE_SIZE_MAX,
+        .capacity = BSHIP_MESSAGE_SIZE_MAX,
         };
         if (message.json == NULL)
         {

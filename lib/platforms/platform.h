@@ -42,7 +42,7 @@ BShip_Connection *BShip_Connection_Allocate(BShip_Arena *arena);
 
 BShip_AIConnection *BShip_AIConnection_Allocate(BShip_Arena *arena);
 
-int32_t BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bool debug);
+bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bool debug);
 
 void BShip_Connection_Close(BShip_Connection *conn);
 

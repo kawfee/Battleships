@@ -10,21 +10,20 @@
 #include "vendor/yyjson/src/yyjson.h"
 #include "battleshipslib.h"
 
-#define MESSAGE_SIZE_MAX 256
-#define MESSAGE_NAME_SIZE_MAX 100
-#define MESSAGE_TYPE_KEY    "mt"
-#define PLAYER_NUM_KEY      "pn"
-#define AI_NAME_KEY         "ai"
-#define AUTHOR_NAMES_KEY    "au"
-#define BOARD_SIZE_KEY      "bs"
-#define LEN_KEY             "l"
-#define ROW_KEY             "r"
-#define COL_KEY             "c"
-#define DIR_KEY             "d"
-#define VALUE_KEY           "v"
-#define SHIP_KEY            "sp"
-#define SHOT_KEY            "st"
-#define NEXT_SHOT_KEY       "ns"
+#define BSHIP_MESSAGE_SIZE_MAX 256
+#define BSHIP_MESSAGE_NAME_SIZE_MAX 100
+
+#define MESSAGE_TYPE_KEY "mt"
+#define PLAYER_NUM_KEY   "pn"
+#define AI_NAME_KEY      "ai"
+#define AUTHOR_NAMES_KEY "au"
+#define BOARD_SIZE_KEY   "bs"
+#define LENGTH_KEY       "l"
+#define ROW_KEY          "r"
+#define COLUMN_KEY       "c"
+#define SHIP_KEY         "sp"
+#define SHOT_KEY         "st"
+#define NEXT_SHOT_KEY    "ns"
 
 typedef enum {
     MESSAGE_HELLO,
@@ -39,7 +38,7 @@ typedef enum {
 BShip_ErrorType BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, char *author_names)
 {
     assert(message.json != NULL);
-    assert(message.length <= MESSAGE_SIZE_MAX);
+    assert(message.length <= BSHIP_MESSAGE_SIZE_MAX);
     assert(ai_name != NULL);
     assert(author_names != NULL);
 
@@ -57,9 +56,9 @@ BShip_ErrorType BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, 
         yyjson_val *obj = yyjson_obj_get(root, AI_NAME_KEY);
         if (!yyjson_is_str(obj)) goto on_error;
         size_t ai_name_len = yyjson_get_len(obj);
-        if (ai_name_len > MESSAGE_NAME_SIZE_MAX)
+        if (ai_name_len > BSHIP_MESSAGE_NAME_SIZE_MAX)
         {
-            ai_name_len = MESSAGE_NAME_SIZE_MAX;
+            ai_name_len = BSHIP_MESSAGE_NAME_SIZE_MAX;
         }
         const char *ai_name_input = yyjson_get_str(obj);
         strncpy(ai_name, ai_name_input, ai_name_len);
@@ -68,9 +67,9 @@ BShip_ErrorType BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, 
         yyjson_val *obj = yyjson_obj_get(root, AUTHOR_NAMES_KEY);
         if (!yyjson_is_str(obj)) goto on_error;
         size_t author_names_len = yyjson_get_len(obj);
-        if (author_names_len > MESSAGE_NAME_SIZE_MAX)
+        if (author_names_len > BSHIP_MESSAGE_NAME_SIZE_MAX)
         {
-            author_names_len = MESSAGE_NAME_SIZE_MAX;
+            author_names_len = BSHIP_MESSAGE_NAME_SIZE_MAX;
         }
         const char *author_names_input = yyjson_get_str(obj);
         strncpy(author_names, author_names_input, author_names_len);
@@ -102,7 +101,7 @@ void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size,
 
     size_t length = 0;
     char *json = yyjson_mut_write(doc, 0, &length);
-    assert(length <= MESSAGE_SIZE_MAX);
+    assert(length <= BSHIP_MESSAGE_SIZE_MAX);
 
     strncpy(message->json, json, length);
     message->length = length;
@@ -125,7 +124,7 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
     yyjson_mut_doc_set_root(doc, root);
 
     yyjson_mut_obj_add_int(doc, root, MESSAGE_TYPE_KEY, MESSAGE_PLACE_SHIPS);
-    yyjson_mut_val *len_arr = yyjson_mut_obj_add_arr(doc, root, LEN_KEY);
+    yyjson_mut_val *length_arr = yyjson_mut_obj_add_arr(doc, root, LENGTH_KEY);
     for (uint8_t i = 0; i < ship_count; i++)
     {
         uint8_t length = ship_lengths[i];
@@ -133,12 +132,12 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
         {
             break;
         }
-        yyjson_mut_arr_add_int(doc, len_arr, length);
+        yyjson_mut_arr_add_int(doc, length_arr, length);
     }
 
     size_t length = 0;
     char *json = yyjson_mut_write(doc, 0, &length);
-    assert(length <= MESSAGE_SIZE_MAX);
+    assert(length <= BSHIP_MESSAGE_SIZE_MAX);
 
     strncpy(message->json, json, length);
     message->length = length;
@@ -150,7 +149,7 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
 BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_ShipArray *ships, uint8_t ship_count)
 {
     assert(message.json != NULL);
-    assert(message.length <= MESSAGE_SIZE_MAX);
+    assert(message.length <= BSHIP_MESSAGE_SIZE_MAX);
     assert(ships != NULL);
     assert(ships->buffer != NULL);
     assert(ships->capacity >= ship_count);
@@ -211,7 +210,7 @@ on_error:
 BShip_ErrorType BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot *shot)
 {
     assert(message.json != NULL);
-    assert(message.length <= MESSAGE_SIZE_MAX);
+    assert(message.length <= BSHIP_MESSAGE_SIZE_MAX);
     assert(shot != NULL);
 
     yyjson_doc *doc = yyjson_read(message.json, message.length, 0);
@@ -233,7 +232,7 @@ BShip_ErrorType BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot 
         shot->row = row;
     }
     {
-        yyjson_val *obj = yyjson_obj_get(root, COL_KEY);
+        yyjson_val *obj = yyjson_obj_get(root, COLUMN_KEY);
         if (!yyjson_is_uint(obj)) goto on_error;
         uint64_t column = yyjson_get_uint(obj);
         if (column >= BSHIP_BOARD_SIZE_MAX) goto on_error;
@@ -303,7 +302,7 @@ void BShip_Message_ShotResult_Create(BShip_Message *message, BShip_Shot shot1, B
 
     size_t length = 0;
     char *json = yyjson_mut_write(doc, 0, &length);
-    assert(length <= MESSAGE_SIZE_MAX);
+    assert(length <= BSHIP_MESSAGE_SIZE_MAX);
 
     strncpy(message->json, json, length);
     message->length = length;
@@ -326,7 +325,7 @@ void BShip_Message_MatchOver_Create(BShip_Message *message)
 
     size_t length = 0;
     char *json = yyjson_mut_write(doc, 0, &length);
-    assert(length <= MESSAGE_SIZE_MAX);
+    assert(length <= BSHIP_MESSAGE_SIZE_MAX);
 
     strncpy(message->json, json, length);
     message->length = length;

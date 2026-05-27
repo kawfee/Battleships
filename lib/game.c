@@ -10,12 +10,11 @@
 
 #include "battleshipslib.h"
 
-// TODO(mattg): convert from double to float precision because we don't need double-level precision.
 uint8_t ShipCountMin_From_BoardSize(uint8_t board_size)
 {
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
-    uint8_t ship_count_min = (uint8_t)((2.0f * log((double)board_size - 4.0f)) + (double)BSHIP_SHIP_COUNT_MIN);
+    uint8_t ship_count_min = (uint8_t)((2.0f * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN);
     return ship_count_min;
 }
 
@@ -23,7 +22,7 @@ uint8_t ShipCountMax_From_BoardSize(uint8_t board_size)
 {
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
-    uint8_t ship_count_max = (uint8_t)((M_PI * log((double)board_size - 4.0f)) + (double)BSHIP_SHIP_COUNT_MIN);
+    uint8_t ship_count_max = (uint8_t)((M_PI * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN);
     return ship_count_max;
 }
 
@@ -32,7 +31,7 @@ uint8_t ShipLengthMin_From_BoardSize(uint8_t board_size)
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
     uint8_t ship_length_min = (uint8_t)(
-        (M_PI_2 * log((double)board_size - 4.0f)) + (double)BSHIP_SHIP_COUNT_MIN
+        (M_PI_2 * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN
     );
     return ship_length_min;
 }
@@ -42,7 +41,7 @@ uint8_t ShipLengthMax_From_BoardSize(uint8_t board_size)
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
     uint8_t ship_length_max = (uint8_t)(
-        (pow((M_PI / M_E), 2.0f) * log((double)board_size - 4.0f)) + (double)BSHIP_SHIP_COUNT_MIN
+        (powf((M_PI / M_E), 2.0f) * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN
     );
     return ship_length_max;
 }
