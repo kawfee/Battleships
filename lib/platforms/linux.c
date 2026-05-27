@@ -243,55 +243,6 @@ void BShip_Connection_Close(BShip_Connection *conn)
     memset(conn, 0, sizeof(BShip_Connection));
 }
 
-BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Connection *conn, bool debug)
-{
-    assert(conn != NULL);
-    assert(ai_conn != NULL);
-    if (listen(conn->socket_desc, 1) == -1)
-    {
-        PRINT_ERROR(strerror(errno));
-        goto on_error;
-    }
-
-    struct sockaddr_un socket_address = {
-        .sun_family = AF_UNIX,
-    };
-    socklen_t socket_address_length = sizeof(socket_address);
-    ai_conn->socket_desc = accept(conn->socket_desc, (struct sockaddr *)&socket_address, &socket_address_length);
-    if (ai_conn->socket_desc == -1) {
-        PRINT_ERROR(strerror(errno));
-        goto on_error;
-    }
-
-    struct timeval tv = {
-        .tv_sec = BSHIP_TIMEOUT_SECONDS,
-        .tv_usec = BSHIP_TIMEOUT_MICROSECONDS,
-    };
-    // NOTE(mattg): Don't set a timer if we want to debug the code.
-    if (!debug)
-    {
-        if (setsockopt(ai_conn->socket_desc, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1)
-        {
-            PRINT_ERROR(strerror(errno));
-            goto on_error;
-        }
-    }
-
-    return ERROR_SUCCESS;
-on_error:
-    BShip_AIConnection_Close(ai_conn);
-    return ERROR_CONNECTION_FAILED;
-}
-
-void BShip_AIConnection_Close(BShip_AIConnection *ai_conn)
-{
-    if (ai_conn->socket_desc > 2) // NOTE(mattg): -1 - socket() error, 0 - stdin, 1 - stdout, 2 - stderr
-    {
-        close(ai_conn->socket_desc);
-    }
-    ai_conn->socket_desc = 0;
-}
-
 BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *ai_path, const char *socket_path)
 {
     assert(ai_conn != NULL);
@@ -389,6 +340,46 @@ void BShip_AIConnection_KillProcess(BShip_AIConnection *ai_conn)
     ai_conn->process_id = 0;
 }
 
+BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Connection *conn, bool debug)
+{
+    assert(conn != NULL);
+    assert(ai_conn != NULL);
+    if (listen(conn->socket_desc, 1) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    struct sockaddr_un socket_address = {
+        .sun_family = AF_UNIX,
+    };
+    socklen_t socket_address_length = sizeof(socket_address);
+    ai_conn->socket_desc = accept(conn->socket_desc, (struct sockaddr *)&socket_address, &socket_address_length);
+    if (ai_conn->socket_desc == -1) {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    struct timeval tv = {
+        .tv_sec = BSHIP_TIMEOUT_SECONDS,
+        .tv_usec = BSHIP_TIMEOUT_MICROSECONDS,
+    };
+    // NOTE(mattg): Don't set a timer if we want to debug the code.
+    if (!debug)
+    {
+        if (setsockopt(ai_conn->socket_desc, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv)) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+            goto on_error;
+        }
+    }
+
+    return ERROR_SUCCESS;
+on_error:
+    BShip_AIConnection_Close(ai_conn);
+    return ERROR_CONNECTION_FAILED;
+}
+
 BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, BShip_Message message)
 {
     assert(ai_conn != NULL);
@@ -424,5 +415,14 @@ BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, BShip_Me
         break;
     }
     return ERROR_SUCCESS;
+}
+
+void BShip_AIConnection_Close(BShip_AIConnection *ai_conn)
+{
+    if (ai_conn->socket_desc > 2) // NOTE(mattg): -1 == socket() error, 0 == stdin, 1 == stdout, 2 == stderr
+    {
+        close(ai_conn->socket_desc);
+    }
+    ai_conn->socket_desc = 0;
 }
 

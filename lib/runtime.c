@@ -348,6 +348,7 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
         }
     }
 
+    // NOTE(mattg): We want this to happen at the end anyway, so don't early exit.
 on_match_over:
     {
         BSHIP_ARENA_TEMP_BEGIN(arena);
@@ -373,8 +374,6 @@ on_match_over:
         }
         BSHIP_ARENA_TEMP_END(arena);
     }
-
-    // NOTE(mattg): We want this to happen at the end anyway, so don't early exit.
 on_conn_accept_error:
     BShip_AIConnection_Close(ai1_conn);
     BShip_AIConnection_Close(ai2_conn);

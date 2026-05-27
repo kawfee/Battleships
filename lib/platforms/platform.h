@@ -46,21 +46,19 @@ bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bo
 
 void BShip_Connection_Close(BShip_Connection *conn);
 
-BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Connection *conn, bool debug);
-
-void BShip_AIConnection_Close(BShip_AIConnection *conn);
-
-
 BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *ai_path, const char *socket_path);
 
 bool BShip_AIConnection_WaitProcess(BShip_AIConnection *ai_conn);
 
 void BShip_AIConnection_KillProcess(BShip_AIConnection *ai_conn);
 
+BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Connection *conn, bool debug);
 
 BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, BShip_Message message);
 
 BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, BShip_Message *message);
+
+void BShip_AIConnection_Close(BShip_AIConnection *conn);
 
 
 #endif // BSHIP_PLATFORM_H
