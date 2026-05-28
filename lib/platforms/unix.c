@@ -1,7 +1,7 @@
 /**
- * @file linux.c
+ * @file unix.c
  * @authors Matthew Getgen
- * @brief Battleships Platform-specific Linux Code
+ * @brief Battleships Platform-specific Linux/macOS Code
  * @date 2026-05-12
  *
  * Unix Domain Socket Programming from [Beej's Guide](https://beej.us/guide/bgipc/html/split/unixsock.html)
@@ -10,6 +10,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #include <signal.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -20,7 +21,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "platform.h"
+#include "../arena.c"
 
 #define BSHIP_TIMEOUT_SECONDS 0
 #define BSHIP_TIMEOUT_MICROSECONDS 500000 // 0.5 seconds
@@ -36,134 +37,22 @@ struct BShip_AIConnection {
     pid_t process_id;
 };
 
-// static inline size_t BShip_Arena_AlignForward(size_t ptr, size_t alignment)
-// {
-//     size_t modulo = ptr & (alignment - 1);
-//
-//     if (modulo != 0)
-//     {
-//         ptr += alignment - modulo;
-//     }
-//     return p;
-// }
-
-static inline BShip_ArenaBlock *BShip_ArenaBlock_Allocate(size_t size)
+void *BShip_Allocate(size_t size)
 {
-    BShip_ArenaBlock *block = malloc(size);
-    if (block == NULL)
+    void *ptr = malloc(size);
+    if (ptr == NULL)
     {
         PRINT_ERROR(strerror(errno));
-        return block;
     }
-    block->previous = NULL;
-    block->capacity = size - sizeof(BShip_ArenaBlock);
-    block->offset = 0;
-    return block;
+    return ptr;
 }
 
-void BShip_Arena_Initialize(BShip_Arena *arena, size_t capacity)
+void BShip_Deallocate(void *ptr)
 {
-    if (arena == NULL)
+    if (ptr != NULL)
     {
-        return;
+        free(ptr);
     }
-    capacity += sizeof(BShip_ArenaBlock);
-    size_t size = BSHIP_ARENA_BLOCK_SIZE_DEFAULT;
-    while (capacity > size)
-    {
-        size += size;
-    }
-    BShip_ArenaBlock *block = BShip_ArenaBlock_Allocate(size);
-    arena->first = block;
-    arena->current = block;
-}
-
-void BShip_Arena_Destroy(BShip_Arena *arena)
-{
-    if (arena == NULL)
-    {
-        return;
-    }
-    BShip_ArenaBlock *block = arena->current;
-    while (block != NULL)
-    {
-        BShip_ArenaBlock *next = block->previous;
-        free(block);
-        block = next;
-    }
-    arena->first = NULL;
-    arena->current = NULL;
-}
-
-void *BShip_Arena_Push(BShip_Arena *arena, size_t size)
-{
-
-    if (arena == NULL || arena->first == NULL || arena->current == NULL)
-    {
-        return NULL;
-    }
-
-    size_t space = arena->current->capacity - arena->current->offset;
-    if (space >= size)
-    {
-        void *memory = &arena->current->memory[arena->current->offset];
-        arena->current->offset += size;
-        return memory;
-    }
-    size_t new_block_capacity = arena->current->capacity * 2;
-    while ((size + sizeof(BShip_ArenaBlock)) > new_block_capacity)
-    {
-        new_block_capacity += new_block_capacity;
-    }
-    BShip_ArenaBlock *block = BShip_ArenaBlock_Allocate(new_block_capacity);
-    if (block == NULL)
-    {
-        return block;
-    }
-    block->previous = arena->current;
-    block->offset += size;
-    arena->current = block;
-    return block->memory;
-}
-
-void BShip_Arena_Reset(BShip_Arena *arena)
-{
-    assert(arena != NULL);
-    BShip_ArenaBlock *block = arena->current;
-    while (block != NULL && arena->first != block)
-    {
-        BShip_ArenaBlock *next = block->previous;
-        free(block);
-        block = next;
-    }
-    arena->current = arena->first;
-    arena->first->offset = 0;
-}
-
-BShip_ArenaMark BShip_ArenaMark_Get(BShip_Arena *arena)
-{
-    assert(arena != NULL);
-    BShip_ArenaMark mark = {
-        .block = arena->current,
-        .offset = arena->current->offset,
-    };
-    return mark;
-}
-
-void BShip_Arena_Rollback(BShip_Arena *arena, BShip_ArenaMark mark)
-{
-    assert(arena != NULL);
-    assert(mark.block != NULL);
-
-    BShip_ArenaBlock *block = arena->current;
-    while (block != mark.block)
-    {
-        BShip_ArenaBlock *previous = block->previous;
-        free(block);
-        block = previous;
-    }
-    block->offset = mark.offset;
-    arena->current = block;
 }
 
 BShip_Connection *BShip_Connection_Allocate(BShip_Arena *arena)
@@ -180,9 +69,9 @@ bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bo
 {
     assert(conn != NULL);
     assert(socket_path != NULL);
-    int32_t sun_path_size = sizeof(conn->socket_address.sun_path);
+    socklen_t socket_address_length = offsetof(struct sockaddr_un, sun_path) + strlen(conn->socket_address.sun_path) + 1;
     conn->socket_address.sun_family = AF_UNIX;
-    memset(&conn->socket_address.sun_path, 0, sun_path_size);
+    memset(&conn->socket_address.sun_path, 0, socket_address_length);
 
     conn->socket_desc = socket(AF_UNIX, SOCK_STREAM, 0);
     if (conn->socket_desc == -1)
@@ -191,16 +80,14 @@ bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bo
         goto on_error;
     }
 
-    int32_t socket_path_length = strlen(socket_path);
-    if (socket_path_length > sun_path_size - 1)
+    uint32_t socket_path_length = strlen(socket_path);
+    if (socket_path_length > socket_address_length - 1)
     {
         PRINT_ERROR("socket_path is too large!");
         goto on_error;
     }
-    memcpy(conn->socket_address.sun_path, socket_path, socket_path_length-1);
+    strncpy(conn->socket_address.sun_path, socket_path, socket_address_length);
     unlink(conn->socket_address.sun_path); // NOTE(mattg): destroy any socket of the same name if it already exists
-    
-    socklen_t socket_address_length = sizeof(conn->socket_address);
 
     if (bind(conn->socket_desc, (struct sockaddr *)&conn->socket_address, socket_address_length) == -1)
     {
@@ -309,7 +196,11 @@ bool BShip_AIConnection_WaitProcess(BShip_AIConnection *ai_conn)
     int status = 0;
     do
     {
-        waitpid(ai_conn->process_id, &status, WNOHANG);
+        pid_t result = waitpid(ai_conn->process_id, &status, WNOHANG);
+        if (result != ai_conn->process_id)
+        {
+            return false;
+        }
         if (WIFEXITED(status))
         {
             ai_conn->exit_status = WEXITSTATUS(status);
@@ -321,7 +212,7 @@ bool BShip_AIConnection_WaitProcess(BShip_AIConnection *ai_conn)
             break;
         }
         gettimeofday(&now, NULL);
-    } while (now.tv_sec <= end.tv_sec && now.tv_usec <= end.tv_usec);
+    } while ((now.tv_sec < end.tv_sec) || (now.tv_sec == end.tv_sec && now.tv_usec <= end.tv_usec));
 
     return false;
 }
@@ -384,7 +275,8 @@ BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, BShip_Messa
 {
     assert(ai_conn != NULL);
     assert(message.json != NULL);
-    if (send(ai_conn->socket_desc, message.json, message.length, 0) == -1) // TODO(mattg): test with MSG_DONTWAIT for non-blocking I/O
+    // TODO(mattg): test with MSG_DONTWAIT for non-blocking I/O
+    if (send(ai_conn->socket_desc, message.json, message.length, 0) == -1)
     {
         PRINT_ERROR(strerror(errno));
         return ERROR_SEND_FAILED;

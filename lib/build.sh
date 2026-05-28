@@ -58,7 +58,7 @@ if [ ! -f "$YYJSON_OBJ" ]; then
         -o "$YYJSON_OBJ"
 fi
 
-SRC="platforms/linux.c runtime.c"
+SRC="platforms/unix.c runtime.c"
 OBJ="$YYJSON_OBJ"
 
 
@@ -71,4 +71,5 @@ for file in $SRC; do
     OBJ="$OBJ $obj"
 done
 
+echo "archiving battleshipslib.a..."
 ar rcs battleshipslib.a $OBJ

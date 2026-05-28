@@ -42,5 +42,6 @@ esac
 
 cd lib && ./build.sh "$MODE" && cd ..
 
+echo "building battlehips..."
 $CC "${CFLAGS[@]}" main.c lib/battleshipslib.a -o battleships
 
