@@ -41,7 +41,7 @@ class PlayerV2 {
 
         virtual void handle_start_game() = 0;
 
-        virtual vector<Ship> choose_ship_placements(int *ship_lengths, int ship_length_count) = 0;
+        virtual vector<Ship> choose_ship_placements(vector<int> &ship_lengths) = 0;
 
         virtual Shot choose_next_shot() = 0;
 
