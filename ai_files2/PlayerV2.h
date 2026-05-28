@@ -23,15 +23,15 @@ using namespace std;
 class PlayerV2 {
     public:
         PlayerV2() {
-            this->socket = 0;
+            this->socket_desc = 0;
             memset(this->msg, 0, MAX_MSG_SIZE+1);
         }
 
         ~Player() {
             // NOTE: if socket is -1 it means an error occurred,
             // if it's 0, 1, or 2 it's stdin, stdout, and stderr.
-            if (this->socket >= 3) {
-                close(this->socket);
+            if (this->socket_desc >= 3) {
+                close(this->socket_desc);
             }
         }
 
