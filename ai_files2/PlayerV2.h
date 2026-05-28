@@ -14,6 +14,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <vector>
 
 #include "definitions.h"
 
@@ -40,9 +41,9 @@ class PlayerV2 {
 
         virtual void handle_start_game() = 0;
 
-        virtual void choose_ship_placements(int *ship_lengths, int ship_length_count) = 0;
+        virtual vector<Ship> choose_ship_placements(int *ship_lengths, int ship_length_count) = 0;
 
-        virtual void choose_next_shot() = 0;
+        virtual Shot choose_next_shot() = 0;
 
         virtual void handle_shot_result(PlayerNum player, Shot shot) = 0;
 
