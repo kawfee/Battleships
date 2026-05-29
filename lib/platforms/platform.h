@@ -20,9 +20,9 @@ typedef struct BShip_Connection BShip_Connection;
 
 typedef struct BShip_AIConnection BShip_AIConnection;
 
-BShip_Connection *BShip_Connection_Allocate(BShip_Arena *arena);
+size_t BShip_Connection_GetSize();
 
-BShip_AIConnection *BShip_AIConnection_Allocate(BShip_Arena *arena);
+size_t BShip_AIConnection_GetSize();
 
 bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bool debug);
 

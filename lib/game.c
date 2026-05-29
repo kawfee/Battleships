@@ -74,19 +74,27 @@ void ShipLengths_Calculate(BShip_U8Array *array, uint8_t board_size)
     assert(array->buffer != NULL);
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
-    // uint8_t ship_count_min = ShipCountMin_From_BoardSize(board_size);
+    uint8_t ship_count_min = ShipCountMin_From_BoardSize(board_size);
     uint8_t ship_count_max = ShipCountMax_From_BoardSize(board_size);
-    // uint8_t ship_length_min = ShipLengthMin_From_BoardSize(board_size);
+    uint8_t ship_length_min = ShipLengthMin_From_BoardSize(board_size);
     uint8_t ship_length_max = ShipLengthMax_From_BoardSize(board_size);
 
     assert(array->capacity >= ship_count_max);
 
-    // TODO: Randomly decide on the ship count.
     uint8_t ship_count = ship_count_max;
-    for (array->length = 0; array->length < ship_count; array->length++)
+    if (ship_count_max != ship_count_min)
     {
-        // TODO: Randomly decide each ship length.
-        array->buffer[array->length] = ship_length_max;
+        // TODO: Randomly decide on the ship count.
+    }
+    for (uint8_t i = 0; i < ship_count; i++)
+    {
+        uint8_t ship_length = ship_length_max;
+        if (ship_length_max != ship_length_min)
+        {
+            // TODO: randomly decide the ship length.
+        }
+        array->buffer[array->length] = ship_length;
+        array->length++;
     }
 }
 

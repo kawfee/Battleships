@@ -10,6 +10,7 @@
 
 #include <cerrno>
 #include <iostream>
+#include <stdbool.h>
 #include <string>
 #include <sys/socket.h>
 #include <sys/un.h>
@@ -24,10 +25,10 @@ class PlayerV2 {
     public:
         PlayerV2() {
             this->socket_desc = 0;
-            memset(this->msg, 0, MAX_MSG_SIZE+1);
+            this->message.clear();
         }
 
-        ~Player() {
+        ~PlayerV2() {
             // NOTE: if socket is -1 it means an error occurred,
             // if it's 0, 1, or 2 it's stdin, stdout, and stderr.
             if (this->socket_desc >= 3) {
@@ -35,7 +36,7 @@ class PlayerV2 {
             }
         }
 
-        int play_match(char *socket_path, const char *ai_name, const char *author_names);
+        bool play_match(char *socket_path, const char *ai_name, const char *author_names);
 
         virtual void handle_setup_match(PlayerNum player, int board_size) = 0;
 
@@ -57,18 +58,17 @@ class PlayerV2 {
     private:
         int socket_desc;
 
-        char msg[MAX_MSG_SIZE+1];
-
+        string message;
     protected:
-        int connect_to_socket(char *socket_path);
+        bool connect_to_socket(char *socket_path);
 
-        int message_send();
+        bool message_send();
 
-        int message_receive(); 
+        bool message_receive(); 
 
         void message_hello_create(const char *ai_name, const char *author_names);
 
-        void message_ships_placed_create(Ship *ships, int length);
+        void message_ships_placed_create(vector<Ship> &ships);
 
         void message_shot_taken_create(Shot shot);
 };

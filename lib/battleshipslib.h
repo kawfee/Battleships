@@ -19,7 +19,8 @@
 #define BSHIP_GAMES_PER_MATCH_MAX 10000
 #define BSHIP_GAMES_PER_MATCH_MIN 1
 #define BSHIP_SHIP_COUNT_MIN 3
-#define BSHIP_SHIP_COUNT_MAX 7
+#define BSHIP_SHIP_COUNT_MAX 10
+#define BSHIP_SHIP_LENGTH_MIN 3
 #define BSHIP_SHIP_LENGTH_MAX 6
 #define BSHIP_SHOT_LENGTH_MAX (BSHIP_BOARD_SIZE_MAX * BSHIP_BOARD_SIZE_MAX)
 
@@ -83,9 +84,6 @@ typedef struct {
     BShip_ArenaBlock *current;
 } BShip_Arena;
 
-void BShip_Arena_Initialize(BShip_Arena *arena, size_t capacity);
-void BShip_Arena_Destroy(BShip_Arena *arena);
-
 typedef struct {
     uint8_t row;
     uint8_t column;
@@ -115,10 +113,6 @@ typedef struct {
     uint8_t *buffer;
     uint8_t size;
 } BShip_Board;
-
-BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size);
-BShip_BoardValue BShip_Board_Get(BShip_Board board, uint8_t row, uint8_t column);
-void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_BoardValue value);
 
 typedef struct {
     char *json;
@@ -218,11 +212,27 @@ typedef enum {
     CONTEST_ROUND_ROBIN,
 } BShip_ContestAlgorithm;
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void BShip_Arena_Initialize(BShip_Arena *arena, size_t capacity);
+void BShip_Arena_Destroy(BShip_Arena *arena);
+
+BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size);
+BShip_BoardValue BShip_Board_Get(BShip_Board board, uint8_t row, uint8_t column);
+void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_BoardValue value);
+
 void BShip_RunContest(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug);
 
 BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     const char *ai1_path, const char *ai2_path, uint8_t board_size, uint32_t games_per_match, bool debug);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif // BATTLESHIPSLIB_H
 

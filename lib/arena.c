@@ -33,6 +33,7 @@
 
 static inline BShip_ArenaBlock *BShip_ArenaBlock_Allocate(size_t size)
 {
+    printf("allocation size %ld\n", size);
     BShip_ArenaBlock *block = BShip_Allocate(size);
     if (block == NULL)
     {
@@ -80,17 +81,21 @@ void BShip_Arena_Destroy(BShip_Arena *arena)
 
 void *BShip_Arena_Push(BShip_Arena *arena, size_t size)
 {
-
+    // printf("push size %ld\n", size);
     if (arena == NULL || arena->first == NULL || arena->current == NULL)
     {
         return NULL;
     }
 
     size_t space = arena->current->capacity - arena->current->offset;
+    // printf("space %ld\n", space);
+    // printf("capacity %ld\n", arena->current->capacity);
+    // printf("offset %ld\n", arena->current->offset);
     if (space >= size)
     {
         void *memory = &arena->current->memory[arena->current->offset];
         arena->current->offset += size;
+        // printf("new offset %ld\n", arena->current->offset);
         return memory;
     }
     size_t new_block_capacity = arena->current->capacity * 2;

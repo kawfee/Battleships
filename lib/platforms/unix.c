@@ -10,7 +10,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #include <signal.h>
-#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -21,7 +20,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
-#include "../arena.c"
+#include "platform.h"
 
 #define BSHIP_TIMEOUT_SECONDS 0
 #define BSHIP_TIMEOUT_MICROSECONDS 500000 // 0.5 seconds
@@ -55,21 +54,23 @@ void BShip_Deallocate(void *ptr)
     }
 }
 
-BShip_Connection *BShip_Connection_Allocate(BShip_Arena *arena)
+size_t BShip_Connection_GetSize()
 {
-    return BShip_Arena_Push(arena, sizeof(BShip_Connection));
+    return (size_t)sizeof(BShip_Connection);
 }
 
-BShip_AIConnection *BShip_AIConnection_Allocate(BShip_Arena *arena)
+size_t BShip_AIConnection_GetSize()
 {
-    return BShip_Arena_Push(arena, sizeof(BShip_AIConnection));
+    return (size_t)sizeof(BShip_AIConnection);
 }
 
 bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bool debug)
 {
     assert(conn != NULL);
     assert(socket_path != NULL);
-    socklen_t socket_address_length = offsetof(struct sockaddr_un, sun_path) + strlen(conn->socket_address.sun_path) + 1;
+
+    socklen_t socket_address_length = sizeof(conn->socket_address.sun_path);
+
     conn->socket_address.sun_family = AF_UNIX;
     memset(&conn->socket_address.sun_path, 0, socket_address_length);
 
@@ -80,13 +81,15 @@ bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path, bo
         goto on_error;
     }
 
-    uint32_t socket_path_length = strlen(socket_path);
-    if (socket_path_length > socket_address_length - 1)
     {
-        PRINT_ERROR("socket_path is too large!");
-        goto on_error;
+        uint32_t socket_path_length = strlen(socket_path);
+        if (socket_path_length > socket_address_length - 1)
+        {
+            PRINT_ERROR("socket_path is too large!");
+            goto on_error;
+        }
     }
-    strncpy(conn->socket_address.sun_path, socket_path, socket_address_length);
+    strncpy(conn->socket_address.sun_path, socket_path, socket_address_length-1);
     unlink(conn->socket_address.sun_path); // NOTE(mattg): destroy any socket of the same name if it already exists
 
     if (bind(conn->socket_desc, (struct sockaddr *)&conn->socket_address, socket_address_length) == -1)

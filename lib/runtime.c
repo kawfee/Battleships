@@ -10,8 +10,8 @@
 
 #include "arena.c"
 #include "message.c"
-#include "contest.c"
 #include "game.c"
+#include "contest.c"
 
 BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
     BShip_AIConnection *ai1_conn, BShip_AIConnection *ai2_conn, uint8_t board_size)
@@ -248,7 +248,7 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     match.games_per_match = games_per_match;
     match.board_size = board_size;
 
-    BShip_Connection *conn = BShip_Connection_Allocate(arena);
+    BShip_Connection *conn = BShip_Arena_Push(arena, BShip_Connection_GetSize());
     if (conn == NULL)
     {
         return match;
@@ -259,8 +259,8 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
         goto on_conn_create_error;
     }
 
-    BShip_AIConnection *ai1_conn = BShip_AIConnection_Allocate(arena);
-    BShip_AIConnection *ai2_conn = BShip_AIConnection_Allocate(arena);
+    BShip_AIConnection *ai1_conn = BShip_Arena_Push(arena, BShip_AIConnection_GetSize());
+    BShip_AIConnection *ai2_conn = BShip_Arena_Push(arena, BShip_AIConnection_GetSize());
     if (ai1_conn == NULL || ai2_conn == NULL)
     {
         goto on_conn_create_error;
@@ -408,20 +408,20 @@ BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size)
     return board;
 }
 
-// void BShip_RunContest(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
-//     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug)
-// {
-//     if (socket_path == NULL || ai_paths == NULL)
-//     {
-//         return;
-//     }
-//     else if (board_size < BSHIP_BOARD_SIZE_MIN || board_size > BSHIP_BOARD_SIZE_MAX)
-//     {
-//         return;
-//     }
-//     else if (games_per_match < BSHIP_GAMES_PER_MATCH_MIN || games_per_match > BSHIP_GAMES_PER_MATCH_MAX)
-//     {
-//         return;
-//     }
-// }
+void BShip_RunContest(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
+    uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug)
+{
+    if (socket_path == NULL || ai_paths == NULL)
+    {
+        return;
+    }
+    else if (board_size < BSHIP_BOARD_SIZE_MIN || board_size > BSHIP_BOARD_SIZE_MAX)
+    {
+        return;
+    }
+    else if (games_per_match < BSHIP_GAMES_PER_MATCH_MIN || games_per_match > BSHIP_GAMES_PER_MATCH_MAX)
+    {
+        return;
+    }
+}
 

@@ -8,7 +8,21 @@
 #ifndef DEFINES_H
 #define DEFINES_H
 
-#define MAX_MSG_SIZE 256
+#include <stdio.h>
+
+#define PRINT_ERROR(message) \
+    do { \
+        fprintf(stderr, "[%s:%d] AI ERROR: %s\n", __FILE__, __LINE__, message); \
+        fflush(stderr); \
+    } while (0)
+
+#define PRINT_ERROR_F(fmt, ...) \
+    do { \
+        fprintf(stderr, "[%s:%d] AI ERROR: " fmt "\n", __FILE__, __LINE__, __VA_ARGS__); \
+        fflush(stderr); \
+    } while (0)
+
+#define MAX_MESSAGE_SIZE 256
 #define MAX_NAME_SIZE 100
 
 // JSON MESSAGE KEYS -- used by the player and server to create and parse messages

@@ -66,7 +66,7 @@ for file in $SRC; do
     obj="build/${file%.c}.o"
     mkdir -p "$(dirname "$obj")"
 
-    echo "Compiling $file object..."
+    echo "Compiling $file object to $obj..."
     $CC "${CFLAGS[@]}" -c "$file" -o "$obj"
     OBJ="$OBJ $obj"
 done
