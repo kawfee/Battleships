@@ -10,11 +10,11 @@
 
 #include "arena.c"
 #include "message.c"
-#include "contest.c"
 #include "game.c"
+#include "contest.c"
 
 BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
-    BShip_AIConnection *ai1_conn, BShip_AIConnection *ai2_conn, uint8_t board_size)
+    BShip_AIConnection *ai1_conn, BShip_AIConnection *ai2_conn, uint8_t board_size, bool debug)
 {
     assert(arena != NULL);
     assert(conn != NULL);
@@ -90,16 +90,12 @@ BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
     }
 
     BShip_Message ai1_message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
-        .length = 0,
-        .capacity = BSHIP_MESSAGE_SIZE_MAX,
+        .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE),
     };
     BShip_Message ai2_message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
-        .length = 0,
-        .capacity = BSHIP_MESSAGE_SIZE_MAX,
+        .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE),
     };
-    if (ai1_message.json == NULL || ai2_message.json == NULL)
+    if (ai1_message.buffer == NULL || ai2_message.buffer == NULL)
     {
         goto on_game_end;
     }
@@ -130,15 +126,15 @@ BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
         memcpy(ship_lengths_copy.buffer, ship_lengths.buffer, ship_lengths.capacity * sizeof(uint8_t));
 
         BShip_Message_PlaceShips_Create(&ai1_message, ship_lengths.buffer, ship_lengths.length);
-        game.ai1.error.type = BShip_AIConnection_Send(ai1_conn, ai1_message);
-        game.ai2.error.type = BShip_AIConnection_Send(ai2_conn, ai1_message);
+        game.ai1.error.type = BShip_AIConnection_Send(ai1_conn, ai1_message, debug);
+        game.ai2.error.type = BShip_AIConnection_Send(ai2_conn, ai1_message, debug);
         if (game.ai1.error.type != ERROR_SUCCESS || game.ai2.error.type != ERROR_SUCCESS)
         {
             goto on_game_end;
         }
 
-        game.ai1.error.type = BShip_AIConnection_Receive(ai1_conn, &ai1_message);
-        game.ai2.error.type = BShip_AIConnection_Receive(ai2_conn, &ai2_message);
+        game.ai1.error.type = BShip_AIConnection_Receive(ai1_conn, &ai1_message, debug);
+        game.ai2.error.type = BShip_AIConnection_Receive(ai2_conn, &ai2_message, debug);
         if (game.ai1.error.type != ERROR_SUCCESS || game.ai2.error.type != ERROR_SUCCESS)
         {
             goto on_game_end;
@@ -170,8 +166,8 @@ BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
             next_shot = false;
         }
 
-        game.ai1.error.type = BShip_AIConnection_Receive(ai1_conn, &ai1_message);
-        game.ai2.error.type = BShip_AIConnection_Receive(ai2_conn, &ai2_message);
+        game.ai1.error.type = BShip_AIConnection_Receive(ai1_conn, &ai1_message, debug);
+        game.ai2.error.type = BShip_AIConnection_Receive(ai2_conn, &ai2_message, debug);
         if (game.ai1.error.type != ERROR_SUCCESS || game.ai2.error.type != ERROR_SUCCESS)
         {
             goto on_game_end;
@@ -210,8 +206,8 @@ BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
         BShip_Message_ShotResult_Create(&ai1_message, game.ai1.shots.buffer[i], game.ai2.shots.buffer[i],
             ai1_dead_ship, ai2_dead_ship, next_shot);
 
-        game.ai1.error.type = BShip_AIConnection_Send(ai1_conn, ai1_message);
-        game.ai2.error.type = BShip_AIConnection_Send(ai2_conn, ai1_message);
+        game.ai1.error.type = BShip_AIConnection_Send(ai1_conn, ai1_message, debug);
+        game.ai2.error.type = BShip_AIConnection_Send(ai2_conn, ai1_message, debug);
         if (game.ai1.error.type != ERROR_SUCCESS || game.ai2.error.type != ERROR_SUCCESS)
         {
             goto on_game_end;
@@ -248,19 +244,38 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     match.games_per_match = games_per_match;
     match.board_size = board_size;
 
-    BShip_Connection *conn = BShip_Connection_Allocate(arena);
+    match.ai1.error.message.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE);
+    match.ai2.error.message.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE);
+    if (match.ai1.error.message.buffer == NULL || match.ai2.error.message.buffer == NULL)
+    {
+        return match;
+    }
+    match.ai1.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai1.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    if (match.ai1.name == NULL || match.ai1.authors == NULL)
+    {
+        return match;
+    }
+    match.ai2.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai2.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    if (match.ai2.name == NULL || match.ai2.authors == NULL)
+    {
+        return match;
+    }
+
+    BShip_Connection *conn = BShip_Arena_Push(arena, BShip_Connection_GetSize());
     if (conn == NULL)
     {
         return match;
     }
 
-    if (!BShip_Connection_Create(conn, socket_path, debug))
+    if (!BShip_Connection_Create(conn, socket_path))
     {
         goto on_conn_create_error;
     }
 
-    BShip_AIConnection *ai1_conn = BShip_AIConnection_Allocate(arena);
-    BShip_AIConnection *ai2_conn = BShip_AIConnection_Allocate(arena);
+    BShip_AIConnection *ai1_conn = BShip_Arena_Push(arena, BShip_AIConnection_GetSize());
+    BShip_AIConnection *ai2_conn = BShip_Arena_Push(arena, BShip_AIConnection_GetSize());
     if (ai1_conn == NULL || ai2_conn == NULL)
     {
         goto on_conn_create_error;
@@ -279,56 +294,29 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     {
         goto on_conn_accept_error;
     }
-    match.ai1.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
-    match.ai1.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
-    match.ai2.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
-    match.ai2.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX+1);
-    if (match.ai1.name == NULL || match.ai1.authors == NULL || match.ai2.name == NULL || match.ai2.authors == NULL)
+
+    match.ai1.error.type = BShip_AIConnection_Receive(ai1_conn, &match.ai1.error.message, debug);
+    match.ai2.error.type = BShip_AIConnection_Receive(ai2_conn, &match.ai2.error.message, debug);
+    if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
     {
         goto on_conn_accept_error;
     }
-    
+
+    match.ai1.error.type = BShip_Message_Hello_Parse(match.ai1.error.message, match.ai1.name, match.ai1.authors);
+    match.ai2.error.type = BShip_Message_Hello_Parse(match.ai2.error.message, match.ai2.name, match.ai2.authors);
+    if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
     {
-        BSHIP_ARENA_TEMP_BEGIN(arena);
-        BShip_Message ai1_message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
-        .length = 0,
-        .capacity = BSHIP_MESSAGE_SIZE_MAX,
-        };
-        BShip_Message ai2_message = {
-            .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
-            .length = 0,
-            .capacity = BSHIP_MESSAGE_SIZE_MAX,
-        };
-        if (ai1_message.json == NULL || ai2_message.json == NULL)
-        {
-            goto on_conn_accept_error;
-        }
+        goto on_conn_accept_error;
+    }
 
-        match.ai1.error.type = BShip_AIConnection_Receive(ai1_conn, &ai1_message);
-        match.ai2.error.type = BShip_AIConnection_Receive(ai2_conn, &ai2_message);
-        if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
-        {
-            goto on_conn_accept_error;
-        }
+    BShip_Message_SetupMatch_Create(&match.ai1.error.message, board_size, BSHIP_PLAYER_1);
+    BShip_Message_SetupMatch_Create(&match.ai2.error.message, board_size, BSHIP_PLAYER_2);
 
-        match.ai1.error.type = BShip_Message_Hello_Parse(ai1_message, match.ai1.name, match.ai1.authors);
-        match.ai2.error.type = BShip_Message_Hello_Parse(ai2_message, match.ai2.name, match.ai2.authors);
-        if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
-        {
-            goto on_conn_accept_error;
-        }
-
-        BShip_Message_SetupMatch_Create(&ai1_message, board_size, BSHIP_PLAYER_1);
-        BShip_Message_SetupMatch_Create(&ai2_message, board_size, BSHIP_PLAYER_2);
-
-        match.ai1.error.type = BShip_AIConnection_Send(ai1_conn, ai1_message);
-        match.ai2.error.type = BShip_AIConnection_Send(ai2_conn, ai2_message);
-        if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
-        {
-            goto on_conn_accept_error;
-        }
-        BSHIP_ARENA_TEMP_END(arena);
+    match.ai1.error.type = BShip_AIConnection_Send(ai1_conn, match.ai1.error.message, debug);
+    match.ai2.error.type = BShip_AIConnection_Send(ai2_conn, match.ai1.error.message, debug);
+    if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
+    {
+        goto on_conn_accept_error;
     }
 
     match.games.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_GameData, games_per_match);
@@ -339,7 +327,7 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     }
     for (match.games.length = 0; match.games.length < match.games.capacity; match.games.length++)
     {
-        BShip_GameData game = BShip_RunGame(arena, conn, ai1_conn, ai2_conn, board_size);
+        BShip_GameData game = BShip_RunGame(arena, conn, ai1_conn, ai2_conn, board_size, debug);
         match.games.buffer[match.games.length] = game;
         // TODO(mattg): merge game and match data.
         if (game.ai1.error.type != ERROR_SUCCESS || game.ai2.error.type != ERROR_SUCCESS)
@@ -353,11 +341,9 @@ on_match_over:
     {
         BSHIP_ARENA_TEMP_BEGIN(arena);
         BShip_Message message = {
-        .json = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE_MAX+1),
-        .length = 0,
-        .capacity = BSHIP_MESSAGE_SIZE_MAX,
+            .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE),
         };
-        if (message.json == NULL)
+        if (message.buffer == NULL)
         {
             goto on_conn_accept_error;
         }
@@ -366,11 +352,11 @@ on_match_over:
 
         if (match.ai1.error.type == ERROR_SUCCESS)
         {
-            BShip_AIConnection_Send(ai1_conn, message);
+            BShip_AIConnection_Send(ai1_conn, message, debug);
         }
         if (match.ai2.error.type == ERROR_SUCCESS)
         {
-            BShip_AIConnection_Send(ai2_conn, message);
+            BShip_AIConnection_Send(ai2_conn, message, debug);
         }
         BSHIP_ARENA_TEMP_END(arena);
     }
@@ -379,11 +365,11 @@ on_conn_accept_error:
     BShip_AIConnection_Close(ai2_conn);
 on_process_error:
     // TODO(mattg): hook this up with the error handling (status code, exited vs hung)
-    if (!BShip_AIConnection_WaitProcess(ai1_conn))
+    if (!BShip_AIConnection_WaitProcess(ai1_conn, debug))
     {
         BShip_AIConnection_KillProcess(ai1_conn);
     }
-    if (!BShip_AIConnection_WaitProcess(ai2_conn))
+    if (!BShip_AIConnection_WaitProcess(ai2_conn, debug))
     {
         BShip_AIConnection_KillProcess(ai2_conn);
     }
