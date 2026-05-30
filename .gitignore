@@ -6,7 +6,7 @@
 !ai_files/protected/
 !ai_files/*.{cpp,h}
 ai_files/
-!ai/*.{cpp,h,hpp,py}
+!ai/*.{cpp,h,hpp,py,sh}
 ai/
 logs/
 __pycache__/

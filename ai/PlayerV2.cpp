@@ -83,7 +83,8 @@ bool PlayerV2::play_match(char *socket_path, const char *ai_name, const char *au
             handle_start_game();
 
             for (int i = 0; i < (int)j[LENGTH_KEY].size(); i++) {
-                ship_lengths.push_back((int)j[LENGTH_KEY].at(i));
+                int ship_length = (int)j[LENGTH_KEY].at(i);
+                ship_lengths.push_back(ship_length);
             }
             ships = choose_ship_placements(ship_lengths);
             message_ships_placed_create(ships);
@@ -161,7 +162,7 @@ bool PlayerV2::message_send() {
     if (this->message.size() > MAX_MESSAGE_SIZE) {
         this->message.resize(MAX_MESSAGE_SIZE);
     }
-    if (send(this->socket_desc, this->message.c_str(), this->message.size(), 0) == -1) {
+    if (send(this->socket_desc, this->message.c_str(), MAX_MESSAGE_SIZE, 0) == -1) {
         PRINT_ERROR(strerror(errno));
         return false;
     }
@@ -170,8 +171,9 @@ bool PlayerV2::message_send() {
 
 bool PlayerV2::message_receive() {
     this->message.clear();
-    char message_buffer[MAX_MESSAGE_SIZE+1] = {};
-    if (recv(this->socket_desc, message_buffer, MAX_MESSAGE_SIZE, 0) == -1) {
+    char message_buffer[MAX_MESSAGE_SIZE] = {};
+    int size = recv(this->socket_desc, message_buffer, MAX_MESSAGE_SIZE, 0);
+    if (size == -1) {
         PRINT_ERROR(strerror(errno));
         return false;
     }
@@ -214,7 +216,7 @@ void PlayerV2::message_ships_placed_create(vector<Ship> &ships) {
 
 void PlayerV2::message_shot_taken_create(Shot shot) {
     json j = {
-        {MESSAGE_TYPE_KEY, MESSAGE_SHIPS_PLACED},
+        {MESSAGE_TYPE_KEY, MESSAGE_SHOT_TAKEN},
         {ROW_KEY, shot.row},
         {COLUMN_KEY, shot.col},
     };

@@ -8,8 +8,6 @@
 #ifndef PLAYER_V2_H
 #define PLAYER_V2_H
 
-#include <cerrno>
-#include <iostream>
 #include <stdbool.h>
 #include <string>
 #include <sys/socket.h>

@@ -20,20 +20,14 @@
 #define BSHIP_ARENA_TEMP_END(arena) \
     BShip_Arena_Rollback(arena, __mark)
 
-// static inline size_t BShip_Arena_AlignForward(size_t ptr, size_t alignment)
-// {
-//     size_t modulo = ptr & (alignment - 1);
-//
-//     if (modulo != 0)
-//     {
-//         ptr += alignment - modulo;
-//     }
-//     return p;
-// }
+static inline void *BShip_Arena_AlignForward(void *address)
+{
+    return (void *)(((uint64_t)(address) + 0xf) & 0xfffffffffffffff0);
+}
 
 static inline BShip_ArenaBlock *BShip_ArenaBlock_Allocate(size_t size)
 {
-    printf("allocation size %ld\n", size);
+    // printf("allocation size %ld\n", size);
     BShip_ArenaBlock *block = BShip_Allocate(size);
     if (block == NULL)
     {
@@ -51,7 +45,6 @@ void BShip_Arena_Initialize(BShip_Arena *arena, size_t capacity)
     {
         return;
     }
-    capacity += sizeof(BShip_ArenaBlock);
     size_t size = BSHIP_ARENA_BLOCK_SIZE_DEFAULT;
     while (capacity > size)
     {
@@ -81,22 +74,25 @@ void BShip_Arena_Destroy(BShip_Arena *arena)
 
 void *BShip_Arena_Push(BShip_Arena *arena, size_t size)
 {
-    // printf("push size %ld\n", size);
     if (arena == NULL || arena->first == NULL || arena->current == NULL)
     {
         return NULL;
     }
 
-    size_t space = arena->current->capacity - arena->current->offset;
-    // printf("space %ld\n", space);
-    // printf("capacity %ld\n", arena->current->capacity);
+    // printf("size %ld\n", size);
+    void *memory = &arena->current->memory[arena->current->offset];
+    // printf("memory %p\n", memory);
+    void *aligned = BShip_Arena_AlignForward(memory);
+    // printf("aligned %p\n", aligned);
     // printf("offset %ld\n", arena->current->offset);
+    size_t alignment_offset = (size_t)((uint64_t)aligned - (uint64_t)memory);
+    // printf("alignment_offset %ld\n", alignment_offset);
+    size_t space = arena->current->capacity - (alignment_offset + arena->current->offset);
+    // printf("space %ld\n", space);
     if (space >= size)
     {
-        void *memory = &arena->current->memory[arena->current->offset];
-        arena->current->offset += size;
-        // printf("new offset %ld\n", arena->current->offset);
-        return memory;
+        arena->current->offset += alignment_offset + size;
+        return aligned;
     }
     size_t new_block_capacity = arena->current->capacity * 2;
     while ((size + sizeof(BShip_ArenaBlock)) > new_block_capacity)

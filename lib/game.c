@@ -86,7 +86,7 @@ void ShipLengths_Calculate(BShip_U8Array *array, uint8_t board_size)
     {
         // TODO: Randomly decide on the ship count.
     }
-    for (uint8_t i = 0; i < ship_count; i++)
+    for (array->length = 0; array->length < ship_count; array->length++)
     {
         uint8_t ship_length = ship_length_max;
         if (ship_length_max != ship_length_min)
@@ -94,7 +94,6 @@ void ShipLengths_Calculate(BShip_U8Array *array, uint8_t board_size)
             // TODO: randomly decide the ship length.
         }
         array->buffer[array->length] = ship_length;
-        array->length++;
     }
 }
 
@@ -165,7 +164,7 @@ BShip_Error ValidateAndStoreShips(BShip_Board board, BShip_ShipArray *ships,
                 }
             }
             fprintf(stderr, " ]\n");
-            break;
+            return error;
         }
         
         uint8_t front = 0, end = board.size, check = 0;
@@ -190,10 +189,10 @@ BShip_Error ValidateAndStoreShips(BShip_Board board, BShip_ShipArray *ships,
             fprintf(stderr, "\trow: %d\n\tcolumn: %d\n\tlength: %d\n\tdirection: %s\n",
                 ship.row, ship.column, ship.length,
                 ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL");
-            break;
+            return error;
         }
-        uint8_t row_multiplier = ship.direction == BSHIP_HORIZONTAL;
-        uint8_t column_multiplier = ship.direction == BSHIP_VERTICAL;
+        uint8_t row_multiplier = ship.direction == BSHIP_VERTICAL;
+        uint8_t column_multiplier = ship.direction == BSHIP_HORIZONTAL;
         for (uint8_t i = 0; i < ship.length; i++)
         {
             uint8_t row = ship.row + (i * row_multiplier);
@@ -206,7 +205,7 @@ BShip_Error ValidateAndStoreShips(BShip_Board board, BShip_ShipArray *ships,
                 fprintf(stderr, "\trow: %d\n\tcolumn: %d\n\tlength: %d\n\tdirection: %s\n",
                     ship.row, ship.column, ship.length,
                     ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL");
-                break;
+                return error;
             }
             else
             {
@@ -286,8 +285,8 @@ BShip_Ship *FindDeadShip(BShip_Board board, BShip_ShipArray ships,
         BShip_Ship *ship = &ships.buffer[index];
 
         uint8_t hit_count = 0;
-        uint8_t row_multiplier = ship->direction == BSHIP_HORIZONTAL;
-        uint8_t column_multiplier = ship->direction == BSHIP_VERTICAL;
+        uint8_t row_multiplier = ship->direction == BSHIP_VERTICAL;
+        uint8_t column_multiplier = ship->direction == BSHIP_HORIZONTAL;
         for (uint8_t j = 0; j < ship->length; j++)
         {
             uint8_t row = ship->row + (j * row_multiplier);

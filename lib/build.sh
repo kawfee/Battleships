@@ -66,10 +66,10 @@ for file in $SRC; do
     obj="build/${file%.c}.o"
     mkdir -p "$(dirname "$obj")"
 
-    echo "Compiling $file object to $obj..."
+    echo "Compiling $file into $obj..."
     $CC "${CFLAGS[@]}" -c "$file" -o "$obj"
     OBJ="$OBJ $obj"
 done
 
-echo "archiving battleshipslib.a..."
+echo "archiving ${OBJ} into battleshipslib.a..."
 ar rcs battleshipslib.a $OBJ

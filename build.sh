@@ -4,7 +4,6 @@ set -e
 
 MODE="${1:-debug}"
 
-CC=gcc
 
 COMMON_FLAGS=(
     -std=c99
@@ -29,9 +28,11 @@ RELEASE_FLAGS=(
 
 case "$MODE" in
     debug)
+        CC=gcc
         CFLAGS=("${COMMON_FLAGS[@]}" "${DEBUG_FLAGS[@]}")
         ;;
     release)
+        CC=clang
         CFLAGS=("${COMMON_FLAGS[@]}" "${RELEASE_FLAGS[@]}")
         ;;
     *)

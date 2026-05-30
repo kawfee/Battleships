@@ -28,10 +28,10 @@
 //     printf("%ld cycles, %ld ns\n", cycles, nanoseconds);
 // }
 
-int main()
+int main(void)
 {
     BShip_Arena arena = {0};
-    BShip_Arena_Initialize(&arena, 0);
+    BShip_Arena_Initialize(&arena, 1048576);
 
     BShip_RunMatch(&arena, "/tmp/battleships.sock", "/home/mgetgen/repos/battleshipssource/ai/example_player_v2/example_player_v2", "/home/mgetgen/repos/battleshipssource/ai/example_player_v2/example_player_v2", 10, 500, false);
     BShip_Arena_Destroy(&arena);
