@@ -4,7 +4,6 @@ set -e
 
 MODE="${1:-debug}"
 
-CC=gcc
 
 COMMON_FLAGS=(
     -std=c99
@@ -29,9 +28,11 @@ RELEASE_FLAGS=(
 
 case "$MODE" in
     debug)
+        CC=gcc
         CFLAGS=("${COMMON_FLAGS[@]}" "${DEBUG_FLAGS[@]}")
         ;;
     release)
+        CC=clang
         CFLAGS=("${COMMON_FLAGS[@]}" "${RELEASE_FLAGS[@]}")
         ;;
     *)
@@ -42,6 +43,6 @@ esac
 
 cd lib && ./build.sh "$MODE" && cd ..
 
-echo "building battlehips..."
-$CC "${CFLAGS[@]}" main.c lib/battleshipslib.a -o battleships
+echo "building battleships..."
+$CC "${CFLAGS[@]}" main.c lib/battleshipslib.a -o battleships -lm
 
