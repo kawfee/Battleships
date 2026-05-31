@@ -232,10 +232,12 @@ BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size);
 BShip_BoardValue BShip_Board_Get(BShip_Board board, uint8_t row, uint8_t column);
 void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_BoardValue value);
 
-// void BShip_RunContest(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
+// void BShip_Contest_Run(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
 //     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug);
 
-BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
+size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_match);
+
+BShip_MatchData BShip_Match_Run(BShip_Arena *arena, const char *socket_path,
     const char *ai1_path, const char *ai2_path, uint8_t board_size, uint32_t games_per_match, bool debug);
 
 #ifdef __cplusplus

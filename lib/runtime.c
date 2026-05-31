@@ -13,7 +13,16 @@
 #include "game.c"
 #include "contest.c"
 
-BShip_GameData BShip_RunGame(BShip_Arena *arena, BShip_Connection *conn,
+size_t BShip_Game_CalculateMemorySize(uint8_t board_size)
+{
+    size_t ship_count_max = (size_t)ShipCountMax_From_BoardSize(board_size);
+    size_t shot_count_max = board_size * board_size;
+    size_t player_size = (sizeof(BShip_Ship) * ship_count_max) + (sizeof(uint8_t) * ship_count_max * 2)
+        + (sizeof(BShip_Shot) * shot_count_max);
+    return player_size * 2;
+}
+
+BShip_GameData BShip_Game_Run(BShip_Arena *arena, BShip_Connection *conn,
     BShip_AIConnection *ai1_conn, BShip_AIConnection *ai2_conn, uint8_t board_size, bool debug)
 {
     assert(arena != NULL);
@@ -225,7 +234,16 @@ on_game_end:
     return game;
 }
 
-BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
+size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_match)
+{
+    size_t game_size = BShip_Game_CalculateMemorySize(board_size) + sizeof(BShip_GameData);
+    size_t ai_size = (BSHIP_MESSAGE_NAME_SIZE_MAX * 4) + (BSHIP_MESSAGE_SIZE * 2);
+    return (game_size * games_per_match) + ai_size + (board_size * board_size * 2)
+        + BShip_Connection_GetSize() + (BShip_AIConnection_GetSize() * 2);
+
+}
+
+BShip_MatchData BShip_Match_Run(BShip_Arena *arena, const char *socket_path,
     const char *ai1_path, const char *ai2_path, uint8_t board_size, uint32_t games_per_match, bool debug)
 {
     BShip_MatchData match = {0};
@@ -327,7 +345,7 @@ BShip_MatchData BShip_RunMatch(BShip_Arena *arena, const char *socket_path,
     }
     for (match.games.length = 0; match.games.length < match.games.capacity; match.games.length++)
     {
-        BShip_GameData game = BShip_RunGame(arena, conn, ai1_conn, ai2_conn, board_size, debug);
+        BShip_GameData game = BShip_Game_Run(arena, conn, ai1_conn, ai2_conn, board_size, debug);
         match.games.buffer[match.games.length] = game;
         // TODO(mattg): merge game and match data.
         if (game.ai1.error.type != ERROR_SUCCESS || game.ai2.error.type != ERROR_SUCCESS)
@@ -394,7 +412,7 @@ BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size)
     return board;
 }
 
-// void BShip_RunContest(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
+// void BShip_Contest_Run(const char *socket_path, const char *ai_paths[], uint32_t ai_paths_length,
 //     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug)
 // {
 //     if (socket_path == NULL || ai_paths == NULL)
