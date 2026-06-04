@@ -27,7 +27,7 @@ class PlayerV2 {
         }
 
         ~PlayerV2() {
-            // NOTE: if socket is -1 it means an error occurred,
+            // NOTE: if socket_desc is -1 it means an error occurred,
             // if it's 0, 1, or 2 it's stdin, stdout, and stderr.
             if (this->socket_desc >= 3) {
                 close(this->socket_desc);
@@ -40,9 +40,9 @@ class PlayerV2 {
 
         virtual void handle_start_game() = 0;
 
-        virtual vector<Ship> choose_ship_placements(vector<int> &ship_lengths) = 0;
+        virtual vector<Ship> choose_ship_placements(vector<int> ship_lengths) = 0;
 
-        virtual Shot choose_next_shot() = 0;
+        virtual Shot choose_shot() = 0;
 
         virtual void handle_shot_result(PlayerNum player, Shot shot) = 0;
 
@@ -66,7 +66,7 @@ class PlayerV2 {
 
         void message_hello_create(const char *ai_name, const char *author_names);
 
-        void message_ships_placed_create(vector<Ship> &ships);
+        void message_ships_placed_create(vector<Ship> ships);
 
         void message_shot_taken_create(Shot shot);
 };
