@@ -9,10 +9,13 @@
 
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
+#include <fcntl.h>
+#include <libgen.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -83,6 +86,19 @@ bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path)
         goto on_error;
     }
 
+    int flags = fcntl(conn->socket_desc, F_GETFD);
+    if (flags == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    if (fcntl(conn->socket_desc, F_SETFD, flags | FD_CLOEXEC) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
     {
         uint32_t socket_path_length = strlen(socket_path);
         if (socket_path_length > socket_address_length - 1)
@@ -120,6 +136,20 @@ void BShip_Connection_Close(BShip_Connection *conn)
     memset(conn, 0, sizeof(BShip_Connection));
 }
 
+bool set_resource_limit(int resource, rlim_t soft_limit, rlim_t hard_limit)
+{
+    struct rlimit limit = {
+        .rlim_cur = soft_limit,
+        .rlim_max = hard_limit,
+    };
+    if (setrlimit(resource, &limit) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return false;
+    }
+    return true;
+}
+
 BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *ai_path, const char *socket_path)
 {
     assert(ai_conn != NULL);
@@ -144,30 +174,92 @@ BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, con
         break;
     }
 
-    char *argv[] = {(char *)ai_path, (char *)socket_path, NULL};
     ai_conn->process_id = fork();
 
-    switch (ai_conn->process_id)
+    if (ai_conn->process_id == 0)
     {
-    case 0: // child process
+        // child process
+ 
         // allow CTRL-C to kill the child process.
-        signal(SIGINT, SIG_DFL);
-
-        if (execv(ai_path, argv) == -1)
+        if (signal(SIGINT, SIG_DFL) == SIG_ERR)
         {
             PRINT_ERROR(strerror(errno));
-            exit(1); // just exit the child process.
+            goto on_error;
         }
-        break;
-    case -1: // error
+
+        // PROCESS RESTRICTION - security surrounding child processes in UNIX/POSIX systems.
+        // 1. Manage process user and group permissions.
+        if (setpgid(0, 0) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+            goto on_error;
+        }
+
+        // 2. Set system resource limits.
+        if (!set_resource_limit(RLIMIT_NPROC, 20, 20))
+        {
+            goto on_error;
+        }
+        if (!set_resource_limit(RLIMIT_NOFILE, 64, 64))
+        {
+            goto on_error;
+        }
+        rlim_t file_size_limit = 10 * 1024 * 1024;
+        if (!set_resource_limit(RLIMIT_FSIZE, file_size_limit, file_size_limit))
+        {
+            goto on_error;
+        }
+
+        // 3. Run the AIs in separate directories, so that AIs don't accidentially edit other files.
+        char home_env_start[] = "HOME=";
+        size_t home_env_start_length = strlen(home_env_start);
+        size_t ai_path_length = strlen(ai_path);
+        size_t home_env_size = home_env_start_length + ai_path_length + 1;
+
+        char *home_env = BShip_Allocate(home_env_size);
+        memset(home_env, 0, home_env_size);
+
+        memcpy(home_env, home_env_start, home_env_start_length);
+        char *ai_path_copy = &home_env[home_env_start_length];
+
+        memcpy(ai_path_copy, ai_path, ai_path_length);
+        char *ai_dir = dirname(ai_path_copy);
+        if (chdir(ai_dir) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+            goto on_error;
+        }
+        // 4. Close unwanted file descriptors.
+        // NOTE(mattg): This one is handled elsewhere, look for FD_CLOEXEC
+        // 5. Restrict ENV variables to just the basics.
+        char *argv[] = {
+            (char *)ai_path,
+            (char *)socket_path,
+            NULL
+        };
+        char *envp[] = {
+            "PATH=/usr/bin:/bin",
+            home_env, // created from the ai_dir calculation
+            "TMPDIR=/tmp",
+            NULL
+        };
+        
+        if (execve(ai_path, argv, envp) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+            goto on_error;
+        }
+on_error:
+        _exit(1); // just exit the child process.
+    }
+    else if (ai_conn->process_id == -1)
+    {
+        // fork error
         PRINT_ERROR(strerror(errno));
         BShip_AIConnection_KillProcess(ai_conn);
         return ERROR_PROCESS_FAILED;
-        break;
-    default:
-        break;
     }
-
+    // server, return
     return ERROR_SUCCESS;
 }
 
@@ -224,8 +316,14 @@ void BShip_AIConnection_KillProcess(BShip_AIConnection *ai_conn)
     PRINT_ERROR("AI has not exited, killing...");
     if (ai_conn->process_id != -1 && ai_conn->process_id != 0)
     {
-        kill(ai_conn->process_id, SIGKILL);
-        waitpid(ai_conn->process_id, NULL, 0);
+        if (kill(-(ai_conn->process_id), SIGKILL) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+        }
+        if (waitpid(ai_conn->process_id, NULL, 0) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+        }
     }
     ai_conn->process_id = 0;
 }
@@ -270,6 +368,20 @@ BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Con
         PRINT_ERROR(strerror(errno));
         return ERROR_CONNECTION_FAILED;
     }
+
+    int flags = fcntl(ai_conn->socket_desc, F_GETFD);
+    if (flags == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return ERROR_CONNECTION_FAILED;
+    }
+
+    if (fcntl(ai_conn->socket_desc, F_SETFD, flags | FD_CLOEXEC) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return ERROR_CONNECTION_FAILED;
+    }
+
 
     return ERROR_SUCCESS;
 }

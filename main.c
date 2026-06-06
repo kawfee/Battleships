@@ -46,7 +46,7 @@ int main(void)
     char learning_player[] = "/home/mgetgen/repos/battleshipssource/ai/04_learning_player/04_learning_player";
     char mean_player[] = "/home/mgetgen/repos/battleshipssource/ai/05_mean_player/05_mean_player";
     char *ai1_path = example_player_1;
-    char *ai2_path = mean_player;
+    char *ai2_path = example_player_2;
 
     BShip_Match_Run(&arena, "/tmp/battleships.sock", ai1_path, ai2_path, board_size, games_per_match, false);
     BShip_Arena_Destroy(&arena);
