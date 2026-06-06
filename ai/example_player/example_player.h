@@ -1,36 +1,36 @@
 /**
- * @file example_player_v2.h
+ * @file example_player.h
  * @author Matthew Getgen
- * @brief The starter header file for making your own AI using the new PlayerV2 class!
+ * @brief The starter header file for making your own AI using the Player class!
  * @date 2026-05-29
  */
 
-#ifndef EXAMPLE_PLAYER_V2_H
-#define EXAMPLE_PLAYER_V2_H
+#ifndef EXAMPLE_PLAYER_H
+#define EXAMPLE_PLAYER_H
 
-#include "../PlayerV2.h"
+#include "../Player.h"
 
 using namespace std;
 
-class ExamplePlayerV2: public PlayerV2 {
+class ExamplePlayer: public Player {
     
     public:
 
-        ExamplePlayerV2();
+        ExamplePlayer();
 
-        ~ExamplePlayerV2();
+        ~ExamplePlayer();
 
         void handle_setup_match(PlayerNum player, int board_size);
 
         void handle_start_game();
 
-        vector<Ship> choose_ship_placements(vector<int> ship_lengths);
+        Ship choose_ship_place(int ship_length);
 
         Shot choose_shot();
 
-        void handle_shot_result(PlayerNum player, Shot shot);
+        void handle_shot_return(PlayerNum player, Shot &shot);
 
-        void handle_ship_dead(PlayerNum player, Ship ship);
+        void handle_ship_dead(PlayerNum player, Ship &ship);
 
         void handle_game_over();
 
@@ -55,5 +55,5 @@ class ExamplePlayerV2: public PlayerV2 {
         void delete_boards();
 };
 
-#endif // EXAMPLE_PLAYER_V2_H
+#endif // EXAMPLE_PLAYER_H
 

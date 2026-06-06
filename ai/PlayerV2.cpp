@@ -90,7 +90,7 @@ bool PlayerV2::play_match(char *socket_path, const char *ai_name, const char *au
             message_ships_placed_create(ships);
             if (!message_send()) return false;
 
-            shot1 = choose_next_shot();
+            shot1 = choose_shot();
             message_shot_taken_create(shot1);
             if (!message_send()) return false;
             break;
@@ -114,7 +114,7 @@ bool PlayerV2::play_match(char *socket_path, const char *ai_name, const char *au
 
             next_shot = (bool)j[NEXT_SHOT_KEY];
             if (next_shot) {
-                shot1 = choose_next_shot();
+                shot1 = choose_shot();
                 message_shot_taken_create(shot1);
                 if (!message_send()) return false;
             } else {
@@ -196,7 +196,7 @@ void PlayerV2::message_hello_create(const char *ai_name, const char *author_name
     this->message = j.dump();
 }
 
-void PlayerV2::message_ships_placed_create(vector<Ship> &ships) {
+void PlayerV2::message_ships_placed_create(vector<Ship> ships) {
     json j = {
         {MESSAGE_TYPE_KEY, MESSAGE_SHIPS_PLACED},
         {SHIP_KEY, json::array()},

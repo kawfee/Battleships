@@ -5,8 +5,8 @@
  * @date 2026-05-27
  */
 
-#ifndef DEFINES_H
-#define DEFINES_H
+#ifndef DEFINITIONS_H
+#define DEFINITIONS_H
 
 #include <stdio.h>
 
@@ -23,7 +23,7 @@
     } while (0)
 
 #define MAX_MESSAGE_SIZE 256
-#define MAX_NAME_SIZE 100
+#define MAX_NAME_SIZE 96
 
 // JSON MESSAGE KEYS -- used by the player and server to create and parse messages
 #define MESSAGE_TYPE_KEY "mt"
@@ -84,13 +84,6 @@ enum BoardValue {
     DUPLICATE_KILL,
 };
 
-/// @brief Possible result of a game.
-enum GameResult {
-    WIN,
-    LOSS,
-    TIE,
-};
-
 /// @brief A structure used to store ship location information.
 /// Also used to send to the server.
 struct Ship {
@@ -108,5 +101,5 @@ struct Shot {
     BoardValue value;
 };
 
-#endif // DEFINES_H
+#endif // DEFINITIONS_H
 

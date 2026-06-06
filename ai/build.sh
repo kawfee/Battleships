@@ -19,7 +19,6 @@ RELEASE_FLAGS=(
     -Werror
     -O3
     -march=native
-    -flto
 )
 
 case "$MODE" in
@@ -37,7 +36,7 @@ case "$MODE" in
         ;;
 esac
 
-SRC="PlayerV2.cpp"
+SRC="Player.cpp PlayerV2.cpp"
 
 for file in $SRC; do
     obj="${file%.cpp}.o"
