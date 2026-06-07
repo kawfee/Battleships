@@ -1,0 +1,8 @@
+{
+    "introText": "Hello World!\n",
+    "printText": true,
+    "subsection1": {
+        "variableA": 1.5,
+        "variableB": 3
+    }
+}
