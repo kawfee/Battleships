@@ -241,8 +241,8 @@ size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_ma
         + BShip_Connection_GetSize() + (BShip_AIConnection_GetSize() * 2);
 }
 
-BShip_MatchData BShip_Match_Run(BShip_Arena *arena, const char *socket_path,
-    const char *ai1_path, const char *ai1_dir, const char *ai2_path, const char *ai2_dir,
+BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
+    char *ai1_path, char *ai1_dir, char *ai2_path, char *ai2_dir,
     uint8_t board_size, uint32_t games_per_match, bool debug)
 {
     BShip_MatchData match = {0};

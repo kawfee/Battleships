@@ -90,7 +90,7 @@ size_t BShip_AIConnection_GetSize(void)
     return (size_t)sizeof(BShip_AIConnection);
 }
 
-bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path)
+bool BShip_Connection_Create(BShip_Connection *conn, char *socket_path)
 {
     assert(conn != NULL);
     assert(socket_path != NULL);
@@ -171,8 +171,8 @@ bool set_resource_limit(int resource, rlim_t soft_limit, rlim_t hard_limit)
     return true;
 }
 
-BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *socket_path,
-    const char *ai_path, const char *ai_dir)
+BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, char *socket_path,
+    char *ai_path, char *ai_dir)
 {
     assert(ai_conn != NULL);
     assert(ai_path != NULL);
@@ -236,9 +236,7 @@ BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, con
         memset(home_env, 0, home_env_size);
 
         memcpy(home_env, home_env_start, home_env_start_length);
-        char *ai_dir_copy = &home_env[home_env_start_length];
-
-        memcpy(ai_dir_copy, ai_dir, ai_dir_length);
+        memcpy(&home_env[home_env_start_length], ai_dir, ai_dir_length);
         if (chdir(ai_dir) == -1)
         {
             PRINT_ERROR(strerror(errno));
