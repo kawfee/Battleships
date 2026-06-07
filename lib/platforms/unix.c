@@ -10,7 +10,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
 #include <fcntl.h>
-#include <libgen.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdlib.h>
@@ -57,6 +56,28 @@ void BShip_Deallocate(void *ptr)
     {
         free(ptr);
     }
+}
+
+bool BShip_PathIsExecutable(char *path)
+{
+    struct stat statbuf = {0};
+    if (stat(path, &statbuf) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return false;
+    }
+    return (S_ISREG(statbuf.st_mode) && (statbuf.st_mode & S_IXUSR));
+}
+
+bool BShip_PathIsDirectory(char *path)
+{
+    struct stat statbuf = {0};
+    if (stat(path, &statbuf) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return false;
+    }
+    return (S_ISDIR(statbuf.st_mode));
 }
 
 size_t BShip_Connection_GetSize(void)
@@ -150,28 +171,23 @@ bool set_resource_limit(int resource, rlim_t soft_limit, rlim_t hard_limit)
     return true;
 }
 
-BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *ai_path, const char *socket_path)
+BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *socket_path,
+    const char *ai_path, const char *ai_dir)
 {
     assert(ai_conn != NULL);
     assert(ai_path != NULL);
     assert (socket_path != NULL);
 
-    struct stat filestat = {0};
-    switch (stat(ai_path, &filestat))
+    if (!BShip_PathIsExecutable(ai_path))
     {
-    case -1:
-        PRINT_ERROR(strerror(errno));
+        PRINT_ERROR_F("AI file %s is not an executable!", ai_path);
         return ERROR_AI_PATH_ISSUE;
-        break;
-    case 0:
-    default:
-        // NOTE(mattg): check if it's a regular file, and if the user has execute permissions
-        if (!S_ISREG(filestat.st_mode) || !(filestat.st_mode & S_IXUSR))
-        {
-            PRINT_ERROR_F("AI file %s is not an executable!", ai_path);
-            return ERROR_AI_PATH_ISSUE;
-        }
-        break;
+    }
+
+    if (!BShip_PathIsDirectory(ai_dir))
+    {
+        PRINT_ERROR_F("AI directory %s is not a directory!", ai_dir);
+        return ERROR_AI_PATH_ISSUE;
     }
 
     ai_conn->process_id = fork();
@@ -213,17 +229,16 @@ BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, con
         // 3. Run the AIs in separate directories, so that AIs don't accidentially edit other files.
         char home_env_start[] = "HOME=";
         size_t home_env_start_length = strlen(home_env_start);
-        size_t ai_path_length = strlen(ai_path);
-        size_t home_env_size = home_env_start_length + ai_path_length + 1;
+        size_t ai_dir_length = strlen(ai_dir);
+        size_t home_env_size = home_env_start_length + ai_dir_length + 1;
 
         char *home_env = BShip_Allocate(home_env_size);
         memset(home_env, 0, home_env_size);
 
         memcpy(home_env, home_env_start, home_env_start_length);
-        char *ai_path_copy = &home_env[home_env_start_length];
+        char *ai_dir_copy = &home_env[home_env_start_length];
 
-        memcpy(ai_path_copy, ai_path, ai_path_length);
-        char *ai_dir = dirname(ai_path_copy);
+        memcpy(ai_dir_copy, ai_dir, ai_dir_length);
         if (chdir(ai_dir) == -1)
         {
             PRINT_ERROR(strerror(errno));

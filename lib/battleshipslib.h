@@ -238,7 +238,8 @@ void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_Board
 size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_match);
 
 BShip_MatchData BShip_Match_Run(BShip_Arena *arena, const char *socket_path,
-    const char *ai1_path, const char *ai2_path, uint8_t board_size, uint32_t games_per_match, bool debug);
+    const char *ai1_path, const char *ai1_dir, const char *ai2_path, const char *ai2_dir,
+    uint8_t board_size, uint32_t games_per_match, bool debug);
 
 #ifdef __cplusplus
 }
