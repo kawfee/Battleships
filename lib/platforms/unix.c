@@ -157,20 +157,6 @@ void BShip_Connection_Close(BShip_Connection *conn)
     memset(conn, 0, sizeof(BShip_Connection));
 }
 
-bool set_resource_limit(int resource, rlim_t soft_limit, rlim_t hard_limit)
-{
-    struct rlimit limit = {
-        .rlim_cur = soft_limit,
-        .rlim_max = hard_limit,
-    };
-    if (setrlimit(resource, &limit) == -1)
-    {
-        PRINT_ERROR(strerror(errno));
-        return false;
-    }
-    return true;
-}
-
 BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, char *socket_path,
     char *ai_path, char *ai_dir)
 {
@@ -211,21 +197,46 @@ BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, cha
             goto on_error;
         }
 
-        // 2. Set system resource limits.
-        if (!set_resource_limit(RLIMIT_NPROC, 20, 20))
-        {
-            goto on_error;
-        }
-        if (!set_resource_limit(RLIMIT_NOFILE, 64, 64))
-        {
-            goto on_error;
-        }
+        // 2. Set system resource limits.  
         rlim_t file_size_limit = 10 * 1024 * 1024;
-        if (!set_resource_limit(RLIMIT_FSIZE, file_size_limit, file_size_limit))
+        typedef struct {
+            int resource;
+            rlim_t soft_limit;
+            rlim_t hard_limit;
+        } ResourceType;
+        ResourceType resources[] = {
+            {
+                // # processes
+                .resource = RLIMIT_NPROC,
+                .soft_limit = 20,
+                .hard_limit = 20,
+            },
+            {
+                // # files open
+                .resource = RLIMIT_NOFILE,
+                .soft_limit = 64,
+                .hard_limit = 64,
+            },
+            {
+                // max file size
+                .resource = RLIMIT_FSIZE,
+                .soft_limit = file_size_limit,
+                .hard_limit = file_size_limit,
+            },
+        };
+        for (size_t i = 0; i < (sizeof(resources) / sizeof(resources[0])); i++)
         {
-            goto on_error;
+            ResourceType r = resources[i];
+            struct rlimit limit = {
+                .rlim_cur = r.soft_limit,
+                .rlim_max = r.hard_limit,
+            };
+            if (setrlimit(r.resource, &limit) == -1)
+            {
+                PRINT_ERROR(strerror(errno));
+                goto on_error;
+            }
         }
-
         // 3. Run the AIs in separate directories, so that AIs don't accidentially edit other files.
         char home_env_start[] = "HOME=";
         size_t home_env_start_length = strlen(home_env_start);
