@@ -55,7 +55,7 @@ int main(void)
         char *ai2_path = example_player_2;
         char *ai2_dir = example_player_2_dir;
 
-        BShip_Match_Run(&arena, "/tmp/battleships.sock",
+        BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock",
                 ai1_path, ai1_dir, ai2_path, ai2_dir,
                 options.board_size, options.games_per_match, false);
         BShip_Arena_Destroy(&arena);
