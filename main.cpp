@@ -39,18 +39,31 @@ int main(void)
         return 1;
     }
 
+    if (options.type == RUNTIME_MATCH)
+    {
+        size_t match_memory_size = BShip_Match_CalculateMemorySize(options.board_size, options.games_per_match);
+        BShip_Arena arena = {};
+        BShip_Arena_Initialize(&arena, match_memory_size);
 
-    uint8_t board_size = 10;
-    uint32_t games_per_match = 500;
+        char example_player_1[] = "/home/mgetgen/repos/battleshipssource/ai/example_player/example_player";
+        char example_player_1_dir[] = "/home/mgetgen/repos/battleshipssource/ai/example_player";
+        char example_player_2[] = "/home/mgetgen/repos/battleshipssource/ai/example_player_v2/example_player_v2";
+        char example_player_2_dir[] = "/home/mgetgen/repos/battleshipssource/ai/example_player_v2";
 
-    size_t match_memory_size = BShip_Match_CalculateMemorySize(board_size, games_per_match);
-    BShip_Arena arena = {};
-    BShip_Arena_Initialize(&arena, match_memory_size);
+        char *ai1_path = example_player_1;
+        char *ai1_dir = example_player_1_dir;
+        char *ai2_path = example_player_2;
+        char *ai2_dir = example_player_2_dir;
 
-    char example_player_1[] = "/home/mgetgen/repos/battleshipssource/ai/example_player/example_player";
-    char example_player_1_dir[] = "/home/mgetgen/repos/battleshipssource/ai/example_player";
-    char example_player_2[] = "/home/mgetgen/repos/battleshipssource/ai/example_player_v2/example_player_v2";
-    char example_player_2_dir[] = "/home/mgetgen/repos/battleshipssource/ai/example_player_v2";
+        BShip_Match_Run(&arena, "/tmp/battleships.sock",
+                ai1_path, ai1_dir, ai2_path, ai2_dir,
+                options.board_size, options.games_per_match, false);
+        BShip_Arena_Destroy(&arena);
+    }
+    else
+    {
+        printf("Unsupported runtime type\n");
+    }
 
     // char bad_player[] = "/home/mgetgen/repos/battleshipssource/ai/00_bad_player/00_bad_player";
     // char clean_player[] = "/home/mgetgen/repos/battleshipssource/ai/01_clean_player/01_clean_player";
@@ -58,14 +71,5 @@ int main(void)
     // char easy_learning_gambler[] = "/home/mgetgen/repos/battleshipssource/ai/03_easy_learning_gambler/03_easy_learning_gambler";
     // char learning_player[] = "/home/mgetgen/repos/battleshipssource/ai/04_learning_player/04_learning_player";
     // char mean_player[] = "/home/mgetgen/repos/battleshipssource/ai/05_mean_player/05_mean_player";
-    char *ai1_path = example_player_1;
-    char *ai1_dir = example_player_1_dir;
-    char *ai2_path = example_player_2;
-    char *ai2_dir = example_player_2_dir;
-
-    BShip_Match_Run(&arena, "/tmp/battleships.sock",
-        ai1_path, ai1_dir, ai2_path, ai2_dir,
-        board_size, games_per_match, false);
-    BShip_Arena_Destroy(&arena);
     return 0;
 }

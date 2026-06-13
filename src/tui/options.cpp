@@ -56,7 +56,7 @@ static inline string TUI_Cursor_Goto(TUI_Cursor cursor)
 
 static inline string TUI_Line_Append(TUI_Cursor *cursor, const char *input)
 {
-    string str = TUI_Cursor_Goto(*cursor) + input;
+    string str = TUI_Cursor_Goto(*cursor) + clearRow() + input;
     cursor->row++;
     return str;
 }
@@ -72,8 +72,19 @@ enum TUI_KeyPress {
     KEY_DOWN,
     KEY_LEFT,
     KEY_RIGHT,
+    KEY_BACKSPACE,
     KEY_ENTER,
     KEY_ESC,
+    KEY_0,
+    KEY_1,
+    KEY_2,
+    KEY_3,
+    KEY_4,
+    KEY_5,
+    KEY_6,
+    KEY_7,
+    KEY_8,
+    KEY_9,
 };
 
 TUI_KeyPress TUI_KeyPress_Get()
@@ -110,6 +121,40 @@ TUI_KeyPress TUI_KeyPress_Get()
     case '\r':
     case '\n':
         key = KEY_ENTER;
+        break;
+    case 8:
+    case 127:
+        key = KEY_BACKSPACE;
+        break;
+    case '0':
+        key = KEY_0;
+        break;
+    case '1':
+        key = KEY_1;
+        break;
+    case '2':
+        key = KEY_2;
+        break;
+    case '3':
+        key = KEY_3;
+        break;
+    case '4':
+        key = KEY_4;
+        break;
+    case '5':
+        key = KEY_5;
+        break;
+    case '6':
+        key = KEY_6;
+        break;
+    case '7':
+        key = KEY_7;
+        break;
+    case '8':
+        key = KEY_8;
+        break;
+    case '9':
+        key = KEY_9;
         break;
     default:
         key = KEY_NONE;
@@ -181,7 +226,7 @@ TUI_RuntimeType TUI_RuntimeType_Get(TUI_Cursor top, bool *should_exit)
     TUI_KeyPress key = KEY_NONE;
     TUI_Cursor cursor = top;
 
-    string prompt = "Select a runtime";
+    string prompt = "Runtime: ";
     while (running)
     {
         cursor = top;
@@ -190,8 +235,8 @@ TUI_RuntimeType TUI_RuntimeType_Get(TUI_Cursor top, bool *should_exit)
 
         for (size_t i = 0; i < ARRAY_LENGTH(runtimes); i++)
         {
-            print_buffer += TUI_Cursor_Goto(cursor);
-            print_buffer += selection == i ? "  > " : "    ";
+            print_buffer += TUI_Cursor_Goto(cursor) + clearRow();
+            print_buffer += selection == i ? " > " : "    ";
             print_buffer += runtimes[i].text;
             cursor.row++;
         }
@@ -234,7 +279,7 @@ TUI_RuntimeType TUI_RuntimeType_Get(TUI_Cursor top, bool *should_exit)
     {
         cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
     }
-    cleanup_buffer += "Runtime: " + setTextStyle(BOLD) + runtimes[selection].text + resetAll();
+    cleanup_buffer += prompt + setTextStyle(BOLD) + runtimes[selection].text + resetAll();
     TUI_WriteBuffer(cleanup_buffer);
 
     return runtimes[selection].type;
@@ -247,17 +292,17 @@ uint8_t TUI_BoardSize_Get(TUI_Cursor top, bool *should_exit)
     TUI_KeyPress key = KEY_NONE;
     TUI_Cursor cursor = top;
 
-    string prompt = "Select a board size";
+    string prompt = "Board Size: ";
     while (running)
     {
         cursor = top;
-        print_buffer = TUI_Line_Append(&cursor, prompt.c_str());
+        print_buffer = TUI_Cursor_Goto(cursor) + clearRow() + prompt;
 
-        string prefix = selection == BSHIP_BOARD_SIZE_MIN ? "      " : "    - ";
+        string prefix = selection == BSHIP_BOARD_SIZE_MIN ? "  " : "- ";
         string postfix = selection == BSHIP_BOARD_SIZE_MAX ? "" : " +";
         string string_selection = to_string(selection);
         if (string_selection.size() == 1) string_selection = " " + string_selection;
-        print_buffer += TUI_Cursor_Goto(cursor) + clearRow() + prefix + string_selection + postfix;
+        print_buffer += prefix + string_selection + postfix;
         cursor.row += 2;
 
         print_buffer += TUI_Line_Append(&cursor, "← → h/l  Move");
@@ -298,7 +343,149 @@ uint8_t TUI_BoardSize_Get(TUI_Cursor top, bool *should_exit)
     {
         cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
     }
-    cleanup_buffer += "Board Size: " + setTextStyle(BOLD) + to_string(selection) + resetAll();
+    cleanup_buffer += prompt + setTextStyle(BOLD) + to_string(selection) + resetAll();
+    TUI_WriteBuffer(cleanup_buffer);
+    return selection;
+}
+
+uint32_t TUI_GamesPerMatch_Get(TUI_Cursor top, uint8_t board_size, bool *should_exit)
+{
+    TUI_WriteBuffer(showCursor());
+
+    uint32_t selection_min = BShip_GamesPerMatchMin_From_BoardSize(board_size);
+    uint32_t selection = BShip_GamesPerMatchDefault_From_BoardSize(board_size);
+    uint32_t selection_max = BShip_GamesPerMatchMax_From_BoardSize(board_size);
+    string string_selection = to_string(selection);
+    TUI_KeyPress key = KEY_NONE;
+    TUI_Cursor cursor = top;
+
+    string prompt = "Games: ";
+    while (running)
+    {
+        cursor = top;
+        string print_buffer = TUI_Cursor_Goto(cursor) + clearRow() + prompt + string_selection;
+
+        TUI_Cursor typing_cursor = cursor;
+        typing_cursor.column = prompt.size() + string_selection.size() + 1;
+        cursor.row++;
+
+        bool invalid = false;
+        bool invalid_number = false;
+        bool invalid_range = false;
+        try
+        {
+            size_t pos;
+            selection = stoi(string_selection, &pos);
+
+            if (pos != string_selection.size())
+            {
+                invalid_number = true;
+            }
+            if (selection < selection_min || selection > selection_max)
+            {
+                invalid_range = true;
+            }
+        }
+        catch (const std::invalid_argument&)
+        {
+            invalid_number = true;
+        }
+        catch (const std::out_of_range&)
+        {
+            invalid_range = true;
+        }
+
+        invalid = (invalid_number || invalid_range);
+        if (invalid_number)
+        {
+            print_buffer += TUI_Cursor_Goto(cursor) + clearRow() + fgColor(RED) + "Invalid number!" + resetAll();
+        }
+        else if (invalid_range)
+        {
+            print_buffer += TUI_Cursor_Goto(cursor) + clearRow() + fgColor(RED) +
+                "Out of Range: " + to_string(selection_min) + "-" + to_string(selection_max) + resetAll();
+        }
+        else
+        {
+            print_buffer += TUI_Cursor_Goto(cursor) + clearRow();
+        }
+        cursor.row++;
+
+        print_buffer += TUI_Line_Append(&cursor, "0-9      Edit");
+        print_buffer += TUI_Line_Append(&cursor, "Bksp     Delete");
+        print_buffer += TUI_Cursor_Goto(cursor) + clearRow() + "Enter    Select";
+        if (invalid)
+        {
+            print_buffer += setTextStyle(BOLD) + " (disabled)" + resetAll();
+        }
+        cursor.row++;
+        print_buffer += TUI_Line_Append(&cursor, "Esc/q    Quit");
+
+        print_buffer += TUI_Cursor_Goto(typing_cursor);
+
+        TUI_WriteBuffer(print_buffer);
+
+        key = TUI_KeyPress_Get();
+
+        bool selected = false;
+        switch (key)
+        {
+        case KEY_ESC:
+            *should_exit = true;
+            goto on_cleanup;
+            break;
+        case KEY_BACKSPACE:
+            if (string_selection.size() > 0) string_selection.pop_back();
+            break;
+        case KEY_0:
+            string_selection.push_back('0');
+            break;
+        case KEY_1:
+            string_selection.push_back('1');
+            break;
+        case KEY_2:
+            string_selection.push_back('2');
+            break;
+        case KEY_3:
+            string_selection.push_back('3');
+            break;
+        case KEY_4:
+            string_selection.push_back('4');
+            break;
+        case KEY_5:
+            string_selection.push_back('5');
+            break;
+        case KEY_6:
+            string_selection.push_back('6');
+            break;
+        case KEY_7:
+            string_selection.push_back('7');
+            break;
+        case KEY_8:
+            string_selection.push_back('8');
+            break;
+        case KEY_9:
+            string_selection.push_back('9');
+            break;
+        case KEY_ENTER:
+            if (!invalid) selected = true;
+            break;
+        default:
+            break;
+        }
+        if (selected)
+        {
+            break;
+        }
+    }
+on_cleanup:
+    string cleanup_buffer = hideCursor();
+    cursor.column = 1;
+    for (cursor.row = cursor.row; cursor.row >= top.row; cursor.row--)
+    {
+        cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
+    }
+    cleanup_buffer += prompt + setTextStyle(BOLD) + to_string(selection) + resetAll();
     TUI_WriteBuffer(cleanup_buffer);
     return selection;
 }
@@ -381,6 +568,13 @@ TUI_Options TUI_Options_Get(bool debug, bool *should_exit)
 
     cursor.row++;
     options.board_size = TUI_BoardSize_Get(cursor, should_exit);
+    if (*should_exit || !running)
+    {
+        goto on_exit;
+    }
+
+    cursor.row++;
+    options.games_per_match = TUI_GamesPerMatch_Get(cursor, options.board_size, should_exit);
     if (*should_exit || !running)
     {
         goto on_exit;
