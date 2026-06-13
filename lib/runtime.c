@@ -254,12 +254,12 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     {
         return match;
     }
-    else if (games_per_match < BSHIP_GAMES_PER_MATCH_MIN || games_per_match > BSHIP_GAMES_PER_MATCH_MAX)
+    else if (games_per_match < BShip_GamesPerMatchMin_From_BoardSize(board_size) ||
+             games_per_match > BShip_GamesPerMatchMax_From_BoardSize(board_size))
     {
         return match;
     }
-
-    if (!BShip_PathIsExecutable(ai1_path) || !BShip_PathIsDirectory(ai1_dir) ||
+    else if (!BShip_PathIsExecutable(ai1_path) || !BShip_PathIsDirectory(ai1_dir) ||
         !BShip_PathIsExecutable(ai2_path) || !BShip_PathIsDirectory(ai2_dir))
     {
         return match;

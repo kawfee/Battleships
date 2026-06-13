@@ -71,6 +71,5 @@ int main(void)
     // char easy_learning_gambler[] = "/home/mgetgen/repos/battleshipssource/ai/03_easy_learning_gambler/03_easy_learning_gambler";
     // char learning_player[] = "/home/mgetgen/repos/battleshipssource/ai/04_learning_player/04_learning_player";
     // char mean_player[] = "/home/mgetgen/repos/battleshipssource/ai/05_mean_player/05_mean_player";
-
     return 0;
 }
