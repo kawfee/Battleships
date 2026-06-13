@@ -150,7 +150,7 @@ BShip_Error ValidateAndStoreShips(BShip_Board board, BShip_ShipArray *ships,
         {
             error.type = ERROR_SHIP_LENGTH_INVALID;
             error.ship = ship;
-            PRINT_ERROR_F("Ship returned with length: %d\n", ship.length);
+            PRINT_ERROR_F("Ship returned with length: %d", ship.length);
             fprintf(stderr, "\tbut expected one of: [ ");
             for (uint8_t j = 0; j < ship_lengths->length; j++)
             {
@@ -185,7 +185,7 @@ BShip_Error ValidateAndStoreShips(BShip_Board board, BShip_ShipArray *ships,
         {
             error.type = ERROR_SHIP_OFF_BOARD;
             error.ship = ship;
-            PRINT_ERROR_F("Ship returned doesn't fit on a %dx%d board\n", board.size, board.size);
+            PRINT_ERROR_F("Ship returned doesn't fit on a %dx%d board", board.size, board.size);
             fprintf(stderr, "\trow: %d\n\tcolumn: %d\n\tlength: %d\n\tdirection: %s\n",
                 ship.row, ship.column, ship.length,
                 ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL");
@@ -201,7 +201,7 @@ BShip_Error ValidateAndStoreShips(BShip_Board board, BShip_ShipArray *ships,
             {
                 error.type = ERROR_SHIP_OVERLAP;
                 error.ship = ship;
-                PRINT_ERROR("Ship returned overlaps with another ship already on the board\n");
+                PRINT_ERROR("Ship returned overlaps with another ship already on the board");
                 fprintf(stderr, "\trow: %d\n\tcolumn: %d\n\tlength: %d\n\tdirection: %s\n",
                     ship.row, ship.column, ship.length,
                     ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL");
@@ -234,7 +234,7 @@ BShip_Error ValidateAndStoreShot(BShip_Board opponent_board, BShip_Shot *shot)
     {
         error.type = ERROR_SHOT_OFF_BOARD;
         error.shot = *shot;
-        PRINT_ERROR_F("Shot returned doesn't fit on a %dx%d board\n", opponent_board.size, opponent_board.size);
+        PRINT_ERROR_F("Shot returned doesn't fit on a %dx%d board", opponent_board.size, opponent_board.size);
         fprintf(stderr, "\trow: %d\n\tcolumn: %d\n", shot->row, shot->column);
         return error;
     }

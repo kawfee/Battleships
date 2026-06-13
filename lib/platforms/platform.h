@@ -15,6 +15,9 @@ void *BShip_Allocate(size_t size);
 
 void BShip_Deallocate(void *ptr);
 
+bool BShip_PathIsExecutable(char *path);
+
+bool BShip_PathIsDirectory(char *path);
 
 typedef struct BShip_Connection BShip_Connection;
 
@@ -24,11 +27,12 @@ size_t BShip_Connection_GetSize(void);
 
 size_t BShip_AIConnection_GetSize(void);
 
-bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path);
+bool BShip_Connection_Create(BShip_Connection *conn, char *socket_path);
 
 void BShip_Connection_Close(BShip_Connection *conn);
 
-BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *ai_path, const char *socket_path);
+BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, char *socket_path,
+    char *ai_path, char *ai_dir);
 
 bool BShip_AIConnection_WaitProcess(BShip_AIConnection *ai_conn, bool debug);
 

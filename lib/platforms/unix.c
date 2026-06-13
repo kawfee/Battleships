@@ -9,10 +9,12 @@
 
 #define _POSIX_C_SOURCE 200809L
 #include <errno.h>
+#include <fcntl.h>
 #include <poll.h>
 #include <signal.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/resource.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
@@ -56,6 +58,28 @@ void BShip_Deallocate(void *ptr)
     }
 }
 
+bool BShip_PathIsExecutable(char *path)
+{
+    struct stat statbuf = {0};
+    if (stat(path, &statbuf) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return false;
+    }
+    return (S_ISREG(statbuf.st_mode) && (statbuf.st_mode & S_IXUSR));
+}
+
+bool BShip_PathIsDirectory(char *path)
+{
+    struct stat statbuf = {0};
+    if (stat(path, &statbuf) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return false;
+    }
+    return (S_ISDIR(statbuf.st_mode));
+}
+
 size_t BShip_Connection_GetSize(void)
 {
     return (size_t)sizeof(BShip_Connection);
@@ -66,7 +90,7 @@ size_t BShip_AIConnection_GetSize(void)
     return (size_t)sizeof(BShip_AIConnection);
 }
 
-bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path)
+bool BShip_Connection_Create(BShip_Connection *conn, char *socket_path)
 {
     assert(conn != NULL);
     assert(socket_path != NULL);
@@ -78,6 +102,19 @@ bool BShip_Connection_Create(BShip_Connection *conn, const char *socket_path)
 
     conn->socket_desc = socket(AF_UNIX, SOCK_STREAM, 0);
     if (conn->socket_desc == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    int flags = fcntl(conn->socket_desc, F_GETFD);
+    if (flags == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    if (fcntl(conn->socket_desc, F_SETFD, flags | FD_CLOEXEC) == -1)
     {
         PRINT_ERROR(strerror(errno));
         goto on_error;
@@ -120,54 +157,133 @@ void BShip_Connection_Close(BShip_Connection *conn)
     memset(conn, 0, sizeof(BShip_Connection));
 }
 
-BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, const char *ai_path, const char *socket_path)
+BShip_ErrorType BShip_AIConnection_StartProcess(BShip_AIConnection *ai_conn, char *socket_path,
+    char *ai_path, char *ai_dir)
 {
     assert(ai_conn != NULL);
     assert(ai_path != NULL);
     assert (socket_path != NULL);
 
-    struct stat filestat = {0};
-    switch (stat(ai_path, &filestat))
+    if (!BShip_PathIsExecutable(ai_path))
     {
-    case -1:
-        PRINT_ERROR(strerror(errno));
+        PRINT_ERROR_F("AI file %s is not an executable!", ai_path);
         return ERROR_AI_PATH_ISSUE;
-        break;
-    case 0:
-    default:
-        // NOTE(mattg): check if it's a regular file, and if the user has execute permissions
-        if (!S_ISREG(filestat.st_mode) || !(filestat.st_mode & S_IXUSR))
-        {
-            PRINT_ERROR_F("AI file %s is not an executable!", ai_path);
-            return ERROR_AI_PATH_ISSUE;
-        }
-        break;
     }
 
-    char *argv[] = {(char *)ai_path, (char *)socket_path, NULL};
+    if (!BShip_PathIsDirectory(ai_dir))
+    {
+        PRINT_ERROR_F("AI directory %s is not a directory!", ai_dir);
+        return ERROR_AI_PATH_ISSUE;
+    }
+
     ai_conn->process_id = fork();
 
-    switch (ai_conn->process_id)
+    if (ai_conn->process_id == 0)
     {
-    case 0: // child process
+        // child process
+ 
         // allow CTRL-C to kill the child process.
-        signal(SIGINT, SIG_DFL);
-
-        if (execv(ai_path, argv) == -1)
+        if (signal(SIGINT, SIG_DFL) == SIG_ERR)
         {
             PRINT_ERROR(strerror(errno));
-            exit(1); // just exit the child process.
+            goto on_error;
         }
-        break;
-    case -1: // error
+
+        // PROCESS RESTRICTION - security surrounding child processes in UNIX/POSIX systems.
+        // 1. Manage process user and group permissions.
+        if (setpgid(0, 0) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+            goto on_error;
+        }
+
+        // 2. Set system resource limits.  
+        rlim_t file_size_limit = 10 * 1024 * 1024;
+        typedef struct {
+            int resource;
+            rlim_t soft_limit;
+            rlim_t hard_limit;
+        } ResourceType;
+        ResourceType resources[] = {
+            {
+                // # processes
+                .resource = RLIMIT_NPROC,
+                .soft_limit = 20,
+                .hard_limit = 20,
+            },
+            {
+                // # files open
+                .resource = RLIMIT_NOFILE,
+                .soft_limit = 64,
+                .hard_limit = 64,
+            },
+            {
+                // max file size
+                .resource = RLIMIT_FSIZE,
+                .soft_limit = file_size_limit,
+                .hard_limit = file_size_limit,
+            },
+        };
+        for (size_t i = 0; i < (sizeof(resources) / sizeof(resources[0])); i++)
+        {
+            ResourceType r = resources[i];
+            struct rlimit limit = {
+                .rlim_cur = r.soft_limit,
+                .rlim_max = r.hard_limit,
+            };
+            if (setrlimit(r.resource, &limit) == -1)
+            {
+                PRINT_ERROR(strerror(errno));
+                goto on_error;
+            }
+        }
+        // 3. Run the AIs in separate directories, so that AIs don't accidentially edit other files.
+        char home_env_start[] = "HOME=";
+        size_t home_env_start_length = strlen(home_env_start);
+        size_t ai_dir_length = strlen(ai_dir);
+        size_t home_env_size = home_env_start_length + ai_dir_length + 1;
+
+        char *home_env = BShip_Allocate(home_env_size);
+        memset(home_env, 0, home_env_size);
+
+        memcpy(home_env, home_env_start, home_env_start_length);
+        memcpy(&home_env[home_env_start_length], ai_dir, ai_dir_length);
+        if (chdir(ai_dir) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+            goto on_error;
+        }
+        // 4. Close unwanted file descriptors.
+        // NOTE(mattg): This one is handled elsewhere, look for FD_CLOEXEC
+        // 5. Restrict ENV variables to just the basics.
+        char *argv[] = {
+            (char *)ai_path,
+            (char *)socket_path,
+            NULL
+        };
+        char *envp[] = {
+            "PATH=/usr/bin:/bin",
+            home_env, // created from the ai_dir calculation
+            "TMPDIR=/tmp",
+            NULL
+        };
+        
+        if (execve(ai_path, argv, envp) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+            goto on_error;
+        }
+on_error:
+        _exit(1); // just exit the child process.
+    }
+    else if (ai_conn->process_id == -1)
+    {
+        // fork error
         PRINT_ERROR(strerror(errno));
         BShip_AIConnection_KillProcess(ai_conn);
         return ERROR_PROCESS_FAILED;
-        break;
-    default:
-        break;
     }
-
+    // server, return
     return ERROR_SUCCESS;
 }
 
@@ -224,8 +340,14 @@ void BShip_AIConnection_KillProcess(BShip_AIConnection *ai_conn)
     PRINT_ERROR("AI has not exited, killing...");
     if (ai_conn->process_id != -1 && ai_conn->process_id != 0)
     {
-        kill(ai_conn->process_id, SIGKILL);
-        waitpid(ai_conn->process_id, NULL, 0);
+        if (kill(-(ai_conn->process_id), SIGKILL) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+        }
+        if (waitpid(ai_conn->process_id, NULL, 0) == -1)
+        {
+            PRINT_ERROR(strerror(errno));
+        }
     }
     ai_conn->process_id = 0;
 }
@@ -270,6 +392,20 @@ BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Con
         PRINT_ERROR(strerror(errno));
         return ERROR_CONNECTION_FAILED;
     }
+
+    int flags = fcntl(ai_conn->socket_desc, F_GETFD);
+    if (flags == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return ERROR_CONNECTION_FAILED;
+    }
+
+    if (fcntl(ai_conn->socket_desc, F_SETFD, flags | FD_CLOEXEC) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return ERROR_CONNECTION_FAILED;
+    }
+
 
     return ERROR_SUCCESS;
 }

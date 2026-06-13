@@ -227,7 +227,6 @@ BShip_GameData BShip_Game_Run(BShip_Arena *arena, BShip_Connection *conn,
             break;
         }
     }
-    
 
 on_game_end:
     BShip_Arena_Rollback(arena, game_mark);
@@ -240,11 +239,11 @@ size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_ma
     size_t ai_size = (BSHIP_MESSAGE_NAME_SIZE_MAX * 4) + (BSHIP_MESSAGE_SIZE * 2);
     return (game_size * games_per_match) + ai_size + (board_size * board_size * 2)
         + BShip_Connection_GetSize() + (BShip_AIConnection_GetSize() * 2);
-
 }
 
-BShip_MatchData BShip_Match_Run(BShip_Arena *arena, const char *socket_path,
-    const char *ai1_path, const char *ai2_path, uint8_t board_size, uint32_t games_per_match, bool debug)
+BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
+    char *ai1_path, char *ai1_dir, char *ai2_path, char *ai2_dir,
+    uint8_t board_size, uint32_t games_per_match, bool debug)
 {
     BShip_MatchData match = {0};
     if (socket_path == NULL || ai1_path == NULL || ai2_path == NULL)
@@ -256,6 +255,12 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, const char *socket_path,
         return match;
     }
     else if (games_per_match < BSHIP_GAMES_PER_MATCH_MIN || games_per_match > BSHIP_GAMES_PER_MATCH_MAX)
+    {
+        return match;
+    }
+
+    if (!BShip_PathIsExecutable(ai1_path) || !BShip_PathIsDirectory(ai1_dir) ||
+        !BShip_PathIsExecutable(ai2_path) || !BShip_PathIsDirectory(ai2_dir))
     {
         return match;
     }
@@ -299,8 +304,8 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, const char *socket_path,
         goto on_conn_create_error;
     }
 
-    match.ai1.error.type = BShip_AIConnection_StartProcess(ai1_conn, ai1_path, socket_path);
-    match.ai2.error.type = BShip_AIConnection_StartProcess(ai2_conn, ai2_path, socket_path);
+    match.ai1.error.type = BShip_AIConnection_StartProcess(ai1_conn, socket_path, ai1_path, ai1_dir);
+    match.ai2.error.type = BShip_AIConnection_StartProcess(ai2_conn, socket_path, ai2_path, ai2_dir);
     if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
     {
         goto on_process_error;
