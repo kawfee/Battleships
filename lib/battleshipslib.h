@@ -16,8 +16,6 @@
 #define BSHIP_ARENA_BLOCK_SIZE_DEFAULT 4096
 #define BSHIP_BOARD_SIZE_MIN 5
 #define BSHIP_BOARD_SIZE_MAX 15
-#define BSHIP_GAMES_PER_MATCH_MAX 10000
-#define BSHIP_GAMES_PER_MATCH_MIN 1
 #define BSHIP_MESSAGE_SIZE 256
 #define BSHIP_MESSAGE_NAME_SIZE_MAX 96
 #define BSHIP_SHIP_COUNT_MIN 3
@@ -237,10 +235,15 @@ void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_Board
 
 size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_match);
 
+uint32_t BShip_GamesPerMatchMin_From_BoardSize(uint8_t board_size);
+
+uint32_t BShip_GamesPerMatchDefault_From_BoardSize(uint8_t board_size);
+
+uint32_t BShip_GamesPerMatchMax_From_BoardSize(uint8_t board_size);
+
 BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     char *ai1_path, char *ai1_dir, char *ai2_path, char *ai2_dir,
     uint8_t board_size, uint32_t games_per_match, bool debug);
-
 #ifdef __cplusplus
 }
 #endif

@@ -46,6 +46,30 @@ uint8_t ShipLengthMax_From_BoardSize(uint8_t board_size)
     return ship_length_max;
 }
 
+uint32_t BShip_GamesPerMatchMin_From_BoardSize(uint8_t board_size)
+{
+    (void)board_size;
+    return 1;
+}
+
+uint32_t BShip_GamesPerMatchDefault_From_BoardSize(uint8_t board_size)
+{
+    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
+    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
+    uint32_t games_per_match = (uint32_t)(
+        5.0f * powf((float)board_size, 2.0f)
+    );
+
+    uint8_t multiple = 100; // set this to 10 if we want rounding up to 10's place.
+    uint32_t games_per_match_rounded = ((games_per_match + multiple - 1) / multiple) * multiple;
+    return games_per_match_rounded;
+}
+
+uint32_t BShip_GamesPerMatchMax_From_BoardSize(uint8_t board_size)
+{
+    return BShip_GamesPerMatchDefault_From_BoardSize(board_size) * 2;
+}
+
 BShip_BoardValue BShip_Board_Get(BShip_Board board, uint8_t row, uint8_t column)
 {
     assert(board.buffer != NULL);
