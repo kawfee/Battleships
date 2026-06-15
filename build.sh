@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+
+set -e
+
+MODE="${1:-debug}"
+
+
+COMMON_FLAGS=(
+    -std=c99
+    -Wall
+    -Wextra
+    -pedantic
+)
+
+DEBUG_FLAGS=(
+    -O0
+    -g
+    -fsanitize=address
+    -fsanitize=undefined
+)
+
+RELEASE_FLAGS=(
+    -Werror
+    -O3
+    -march=native
+    -flto
+)
+
+case "$MODE" in
+    debug)
+        CC=gcc
+        CFLAGS=("${COMMON_FLAGS[@]}" "${DEBUG_FLAGS[@]}")
+        ;;
+    release)
+        CC=clang
+        CFLAGS=("${COMMON_FLAGS[@]}" "${RELEASE_FLAGS[@]}")
+        ;;
+    *)
+        echo "Usage: $0 [debug|release]"
+        exit 1
+        ;;
+esac
+
+cd lib && ./build.sh "$MODE" && cd ..
+
+echo "building battleships..."
+$CC "${CFLAGS[@]}" main.c lib/battleshipslib.a -o battleships -lm
+
