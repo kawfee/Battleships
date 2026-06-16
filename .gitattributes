@@ -1,0 +1,18 @@
+# Auto-detect text files and normalize to LF in the repository
+* text=auto eol=lf
+
+# Source code
+*.c       text eol=lf
+*.h       text eol=lf
+*.cpp     text eol=lf
+*.hpp     text eol=lf
+*.py      text eol=lf
+
+# Build files
+*.sh      text eol=lf
+Makefile  text eol=lf
+*.bat     text eol=crlf
+
+# Documentation
+*.md      text eol=lf
+*.txt     text eol=lf
