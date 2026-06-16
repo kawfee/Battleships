@@ -45,8 +45,8 @@ void PlayerExample::handle_setup_match(PlayerNum player, int board_size) {
     this->player = player;
     this->board_size = board_size;
     create_boards();
-    loadSettingsFromFile();
-    exampleJSON();
+    load_settings_from_file();
+    example_json();
     return;
 }
 
@@ -158,16 +158,14 @@ void PlayerExample::delete_boards() {
     return;
 }
 
-void PlayerExample::loadSettingsFromFile() {
+void PlayerExample::load_settings_from_file() {
     std::ifstream file(AI_SETTINGS_FILEPATH);
     if (!file.is_open()) {
-        throw std::runtime_error("Could not open JSON file! Check naming!");
+        std::cerr<<"Could not open JSON file! Check naming!";
+        return;
     }
-    try {
         file >> data;
-    } catch (const std::exception& e) {
-        throw std::runtime_error(std::string("JSON parse error: ") + e.what());
-    }
+    
 }
 
 /*
@@ -205,7 +203,7 @@ These patterns allow you to handle JSON files whose structure may change
 without causing crashes.
 ================================================================================
 */
-void PlayerExample::exampleJSON() {
+void PlayerExample::example_json() {
     std::cout << "\n=== Example JSON Access ===\n";
 
     // introText

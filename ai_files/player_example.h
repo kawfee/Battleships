@@ -73,10 +73,10 @@ class PlayerExample: public Player {
         void handle_match_over();
 
         /// @brief Loads the settings JSON datastructure from the defined path.
-        void loadSettingsFromFile();
+        void load_settings_from_file();
 
         /// @brief Example of imported JSON datastructure usage.
-        void exampleJSON();
+        void example_json();
     private:
 
         // If you want to track other boards, make sure to add them to
