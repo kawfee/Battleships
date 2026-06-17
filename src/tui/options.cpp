@@ -6,10 +6,12 @@
  */
 
 #include <csignal>
+#include <cerrno>
 #include <iostream>
 #include <poll.h>
 #include <string>
 #include <termios.h>
+#include <vector>
 
 #include "conio.cpp"
 #include "../../lib/battleshipslib.h"
@@ -38,8 +40,8 @@ enum TUI_RuntimeType {
 
 struct TUI_Options {
     TUI_RuntimeType type;
-    string ai1_path;
-    string ai2_path;
+    BShip_AIFileData ai1;
+    BShip_AIFileData ai2;
     uint32_t games_per_match;
     uint8_t board_size;
 };
@@ -490,9 +492,101 @@ on_cleanup:
     return selection;
 }
 
-TUI_Options TUI_Options_Get(bool debug, bool *should_exit)
+BShip_AIFileData TUI_MatchPlayer_Get(TUI_Cursor top, vector<BShip_AIFileData> ais,
+    BShip_PlayerNum player, bool *should_exit)
 {
-    TUI_Options options = {};
+    string print_buffer = "";
+    size_t selection = 0;
+    TUI_KeyPress key = KEY_NONE;
+    TUI_Cursor cursor = top;
+    const size_t WINDOW_SIZE = 10;
+    size_t window_top = 0;
+
+    string prompt = player == BSHIP_PLAYER_1 ? "Player 1: " : "Player 2: ";
+    while (running && !(*should_exit))
+    {
+        cursor = top;
+        print_buffer = "";
+        print_buffer += TUI_Line_Append(&cursor, prompt.c_str());
+
+        if (ais.size() > WINDOW_SIZE)
+        {
+            string more = "";
+            if (window_top > 0)
+            {
+                more += "↑ " + to_string(window_top) + " more";
+            }
+            print_buffer += TUI_Line_Append(&cursor, more.c_str());
+        }
+
+        for (size_t i = 0; i < ais.size(); i++)
+        {
+            if (i < window_top) continue;
+            else if (i >= window_top + WINDOW_SIZE) break;
+
+            string prefix = selection == i ? " > " : "    ";
+            string row = prefix + ais.at(i).file_name;
+            print_buffer += TUI_Line_Append(&cursor, row.c_str());
+        }
+        if (ais.size() > WINDOW_SIZE)
+        {
+            string more = "";
+            size_t top_count = ais.size() - (window_top + WINDOW_SIZE);
+            if (top_count > 0)
+            {
+                more += "↓ " + to_string(top_count) + " more";
+            }
+            print_buffer += TUI_Line_Append(&cursor, more.c_str());
+        }
+        print_buffer += TUI_Line_Append(&cursor, "");
+        print_buffer += TUI_Line_Append(&cursor, "↑ ↓ j/k  Move");
+        print_buffer += TUI_Line_Append(&cursor, "Enter    Select");
+        print_buffer += TUI_Line_Append(&cursor, "Esc/q    Quit");
+
+        TUI_WriteBuffer(print_buffer);
+
+        key = TUI_KeyPress_Get();
+
+        bool selected = false;
+        switch (key)
+        {
+        case KEY_ESC:
+            *should_exit = true;
+            break;
+        case KEY_UP:
+            if (selection > 0) selection--;
+            if (window_top > 0 && selection == window_top) window_top--;
+            break;
+        case KEY_DOWN:
+            if (selection < ais.size()-1) selection++;
+            if (window_top + WINDOW_SIZE < ais.size() && selection == window_top + WINDOW_SIZE - 1) window_top++;
+            break;
+        case KEY_ENTER:
+            selected = true;
+            break;
+        default:
+            break;
+        }
+        if (selected)
+        {
+            break;
+        }
+    }
+    string cleanup_buffer = "";
+    cursor.column = 1;
+    for (cursor.row = cursor.row; cursor.row >= top.row; cursor.row--)
+    {
+        cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
+    }
+    cleanup_buffer += prompt + setTextStyle(BOLD) + ais.at(selection).file_name + resetAll();
+    TUI_WriteBuffer(cleanup_buffer);
+
+    return ais.at(selection);
+}
+
+bool TUI_Options_Get(TUI_Options *options, vector<BShip_AIFileData> ais, bool debug)
+{
+    bool should_exit = false;
 
     struct termios original = {};
     tcgetattr(STDIN_FILENO, &original);
@@ -545,7 +639,7 @@ TUI_Options TUI_Options_Get(bool debug, bool *should_exit)
     if (debug)
     {
         start_buffer += TUI_Cursor_Goto(cursor) + "DEBUG MODE ENABLED";
-    cursor.row++;
+        cursor.row++;
     }
     cursor.row++;
 
@@ -560,26 +654,39 @@ TUI_Options TUI_Options_Get(bool debug, bool *should_exit)
     }
     TUI_WriteBuffer(start_buffer);
 
-    options.type = TUI_RuntimeType_Get(cursor, should_exit);
-    if (*should_exit || !running)
+    options->type = TUI_RuntimeType_Get(cursor, &should_exit);
+    if (should_exit || !running)
     {
         goto on_exit;
     }
 
     cursor.row++;
-    options.board_size = TUI_BoardSize_Get(cursor, should_exit);
-    if (*should_exit || !running)
+    options->board_size = TUI_BoardSize_Get(cursor, &should_exit);
+    if (should_exit || !running)
     {
         goto on_exit;
     }
 
     cursor.row++;
-    options.games_per_match = TUI_GamesPerMatch_Get(cursor, options.board_size, should_exit);
-    if (*should_exit || !running)
+    options->games_per_match = TUI_GamesPerMatch_Get(cursor, options->board_size, &should_exit);
+    if (should_exit || !running)
     {
         goto on_exit;
     }
 
+    cursor.row++;
+    options->ai1 = TUI_MatchPlayer_Get(cursor, ais, BSHIP_PLAYER_1, &should_exit);
+    if (should_exit || !running)
+    {
+        goto on_exit;
+    }
+
+    cursor.row++;
+    options->ai2 = TUI_MatchPlayer_Get(cursor, ais, BSHIP_PLAYER_2, &should_exit);
+    if (should_exit || !running)
+    {
+        goto on_exit;
+    }
 
 on_exit:
     string end_buffer = resetAll() + showCursor() + leaveAltScreen();
@@ -593,8 +700,8 @@ on_exit:
 
     if (!running)
     {
-        *should_exit = true;
+        should_exit = true;
     }
-    return options;
+    return should_exit;
 }
 

@@ -1,5 +1,12 @@
 #define _DEFAULT_SOURCE 1
+#include <algorithm>
+#include <cstring>
+#include <dirent.h>
+#include <sys/stat.h>
 #include <stdio.h>
+#include <strings.h>
+#include <string>
+#include <vector>
 // #include <time.h>
 // #include <x86intrin.h>
 
@@ -29,13 +36,160 @@
 //     printf("%ld cycles, %ld ns\n", cycles, nanoseconds);
 // }
 
+vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
+{
+    vector<BShip_AIFileData> ais;
+
+    char *cwd = NULL;
+    {
+        const size_t CWD_BUFFER_SIZE_DEFAULT = 64;
+        size_t cwd_buffer_size = CWD_BUFFER_SIZE_DEFAULT;
+        char *cwd_buffer = NULL;
+        BShip_ArenaMark cwd_mark = BShip_ArenaMark_Get(arena);
+
+        while (cwd == NULL)
+        {
+            cwd_buffer = (char *)BShip_Arena_Push(arena, cwd_buffer_size);
+            if (cwd_buffer == NULL)
+            {
+                return ais;
+            }
+
+            cwd = getcwd(cwd_buffer, cwd_buffer_size);
+            if (cwd != NULL)
+            {
+                break;
+            }
+            if (errno != ERANGE)
+            {
+                perror("getcwd");
+                return ais;
+            }
+
+            cwd_buffer_size += CWD_BUFFER_SIZE_DEFAULT;
+            BShip_Arena_Rollback(arena, cwd_mark);
+        }
+    }
+    string ai_dir_string = cwd;
+    ai_dir_string += "/ai";
+
+    DIR *ai_dir_ref = opendir(ai_dir_string.c_str());
+    if (ai_dir_ref == NULL)
+    {
+        perror("opendir");
+        return ais;
+    }
+    struct dirent *ai_dir_entry = NULL;
+
+    while ((ai_dir_entry = readdir(ai_dir_ref)) != NULL)
+    {
+        // Skip "." and ".."
+        if (strncmp(ai_dir_entry->d_name, ".", 1) == 0 ||
+            strncmp(ai_dir_entry->d_name, "..", 2) == 0)
+        {
+            continue;
+        }
+        string player_dir_string = ai_dir_string + "/" + ai_dir_entry->d_name;
+        {
+            struct stat st = {};
+            if (stat(player_dir_string.c_str(), &st) == -1)
+            {
+                perror("perror");
+                continue;
+            }
+
+            if (!S_ISDIR(st.st_mode))
+            {
+                continue;
+            }
+        }
+
+        DIR *player_dir_ref = opendir(player_dir_string.c_str());
+        if (player_dir_ref == NULL)
+        {
+            perror("opendir");
+            continue;
+        }
+        struct dirent *player_dir_entry = NULL;
+
+        while ((player_dir_entry = readdir(player_dir_ref)) != NULL)
+        {
+            // Skip "." and ".."
+            if (strncmp(player_dir_entry->d_name, ".", 1) == 0 ||
+                strncmp(player_dir_entry->d_name, "..", 2) == 0)
+            {
+                continue;
+            }
+            string player_exec_string = player_dir_string + "/" + player_dir_entry->d_name;
+            {
+                struct stat st = {};
+                if (stat(player_exec_string.c_str(), &st) == -1)
+                {
+                    perror("perror");
+                    continue;
+                }
+                if (!S_ISREG(st.st_mode) || !(st.st_mode & S_IXUSR))
+                {
+                    continue;
+                }
+            }
+            BShip_AIFileData player = {};
+            typedef struct {
+                char **dest;
+                const char *src;
+                size_t size;
+            } PlayerPathWriter;
+            PlayerPathWriter paths[] = {
+                {
+                    .dest = &player.file_name,
+                    .src = player_dir_entry->d_name,
+                    .size = strlen(player_dir_entry->d_name) + 1,
+                },
+                {
+                    .dest = &player.file_path,
+                    .src = player_exec_string.c_str(),
+                    .size = player_exec_string.size() + 1,
+                },
+                {
+                    .dest = &player.runtime_directory,
+                    .src = player_dir_string.c_str(),
+                    .size = player_dir_string.size() + 1,
+                },
+            };
+            for (size_t i = 0; i < ARRAY_LENGTH(paths); i++)
+            {
+                PlayerPathWriter path = paths[i];
+                *path.dest = (char *)BShip_Arena_Push(arena, path.size);
+                memset(*path.dest, 0, path.size);
+                memcpy(*path.dest, path.src, path.size);
+            }
+            ais.push_back(player);
+            break;
+        }
+        closedir(player_dir_ref);
+    }
+    closedir(ai_dir_ref);
+
+    sort(ais.begin(), ais.end(),
+        [](const BShip_AIFileData& a, const BShip_AIFileData& b) {
+            return strcasecmp(a.file_name, b.file_name) < 0;
+        });
+
+    return ais;
+}
+
 int main(void)
 {
     bool debug = false;
-    bool should_exit = false;
-    TUI_Options options = TUI_Options_Get(debug, &should_exit);
+    BShip_Arena string_arena = {};
+    BShip_Arena_Initialize(&string_arena, 0); // 0 creates default size.
+    vector<BShip_AIFileData> ais = GetAIs(&string_arena);
+
+    TUI_Options options = {};
+    bool should_exit = TUI_Options_Get(&options, ais, debug);
     if (should_exit)
     {
+        BShip_Arena_Destroy(&string_arena);
         return 1;
     }
 
@@ -45,19 +199,8 @@ int main(void)
         BShip_Arena arena = {};
         BShip_Arena_Initialize(&arena, match_memory_size);
 
-        char example_player_1[] = "/home/mgetgen/repos/battleshipssource/ai/example_player/example_player";
-        char example_player_1_dir[] = "/home/mgetgen/repos/battleshipssource/ai/example_player";
-        char example_player_2[] = "/home/mgetgen/repos/battleshipssource/ai/example_player_v2/example_player_v2";
-        char example_player_2_dir[] = "/home/mgetgen/repos/battleshipssource/ai/example_player_v2";
-
-        char *ai1_path = example_player_1;
-        char *ai1_dir = example_player_1_dir;
-        char *ai2_path = example_player_2;
-        char *ai2_dir = example_player_2_dir;
-
-        BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock",
-                ai1_path, ai1_dir, ai2_path, ai2_dir,
-                options.board_size, options.games_per_match, false);
+        BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock", options.ai1, options.ai2,
+            options.board_size, options.games_per_match, debug);
         BShip_Arena_Destroy(&arena);
     }
     else
@@ -65,11 +208,7 @@ int main(void)
         printf("Unsupported runtime type\n");
     }
 
-    // char bad_player[] = "/home/mgetgen/repos/battleshipssource/ai/00_bad_player/00_bad_player";
-    // char clean_player[] = "/home/mgetgen/repos/battleshipssource/ai/01_clean_player/01_clean_player";
-    // char gambler_player[] = "/home/mgetgen/repos/battleshipssource/ai/02_gambler_player/02_gambler_player";
-    // char easy_learning_gambler[] = "/home/mgetgen/repos/battleshipssource/ai/03_easy_learning_gambler/03_easy_learning_gambler";
-    // char learning_player[] = "/home/mgetgen/repos/battleshipssource/ai/04_learning_player/04_learning_player";
-    // char mean_player[] = "/home/mgetgen/repos/battleshipssource/ai/05_mean_player/05_mean_player";
+    BShip_Arena_Destroy(&string_arena);
+
     return 0;
 }

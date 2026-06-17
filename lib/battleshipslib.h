@@ -209,6 +209,12 @@ typedef struct {
     uint8_t board_size;
 } BShip_MatchData;
 
+typedef struct {
+    char *file_name;
+    char *file_path;
+    char *runtime_directory;
+} BShip_AIFileData;
+
 typedef enum {
     CONTEST_CLASSIC,
     CONTEST_ROUND_ROBIN,
@@ -242,7 +248,7 @@ uint32_t BShip_GamesPerMatchDefault_From_BoardSize(uint8_t board_size);
 uint32_t BShip_GamesPerMatchMax_From_BoardSize(uint8_t board_size);
 
 BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
-    char *ai1_path, char *ai1_dir, char *ai2_path, char *ai2_dir,
+    BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
     uint8_t board_size, uint32_t games_per_match, bool debug);
 #ifdef __cplusplus
 }
