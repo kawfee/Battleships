@@ -11,7 +11,7 @@
 // #include <x86intrin.h>
 
 #include "lib/battleshipslib.h"
-#include "src/tui/options.cpp"
+#include "src/tui/options2.cpp"
 
 // typedef struct {
 //     long cycles;
@@ -156,7 +156,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
                     .size = player_dir_string.size() + 1,
                 },
             };
-            for (size_t i = 0; i < ARRAY_LENGTH(paths); i++)
+            for (size_t i = 0; i < TUI_ARRAY_LENGTH(paths); i++)
             {
                 PlayerPathWriter path = paths[i];
                 *path.dest = (char *)BShip_Arena_Push(arena, path.size);
@@ -186,14 +186,13 @@ int main(void)
     vector<BShip_AIFileData> ais = GetAIs(&string_arena);
 
     TUI_Options options = {};
-    bool should_exit = TUI_Options_Get(&options, ais, debug);
+    bool should_exit = TUI_Options_Get(&options, ais, true);
     if (should_exit)
     {
-        BShip_Arena_Destroy(&string_arena);
-        return 1;
+        goto on_error;
     }
 
-    if (options.type == RUNTIME_MATCH)
+    if (options.runtime == RUNTIME_MATCH)
     {
         size_t match_memory_size = BShip_Match_CalculateMemorySize(options.board_size, options.games_per_match);
         BShip_Arena arena = {};
@@ -209,6 +208,8 @@ int main(void)
     }
 
     BShip_Arena_Destroy(&string_arena);
-
     return 0;
+on_error:
+    BShip_Arena_Destroy(&string_arena);
+    return 1;
 }
