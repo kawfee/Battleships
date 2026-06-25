@@ -21,7 +21,6 @@ RELEASE_FLAGS=(
     -Werror
     -O3
     -march=native
-    -flto
 )
 
 case "$MODE" in
@@ -30,7 +29,7 @@ case "$MODE" in
         CFLAGS=("${COMMON_FLAGS[@]}" "${DEBUG_FLAGS[@]}")
         ;;
     release)
-        CC=clang++
+        CC=g++
         CFLAGS=("${COMMON_FLAGS[@]}" "${RELEASE_FLAGS[@]}")
         ;;
     *)

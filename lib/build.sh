@@ -26,7 +26,6 @@ RELEASE_FLAGS=(
     -Werror
     -O3
     -march=native
-    -flto
 )
 
 case "$MODE" in
