@@ -11,7 +11,7 @@
 // #include <x86intrin.h>
 
 #include "lib/battleshipslib.h"
-#include "src/tui/options2.cpp"
+#include "src/tui/options.cpp"
 
 // typedef struct {
 //     long cycles;
@@ -186,7 +186,7 @@ int main(void)
     vector<BShip_AIFileData> ais = GetAIs(&string_arena);
 
     TUI_Options options = {};
-    bool should_exit = TUI_Options_Get(&options, ais, true);
+    bool should_exit = TUI_Options_Get(&options, ais, debug);
     if (should_exit)
     {
         goto on_error;

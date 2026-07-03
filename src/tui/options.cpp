@@ -2,703 +2,591 @@
  * @file options.cpp
  * @author Matthew Getgen
  * @brief Battleships tui input options.
- * @date 2026-06-07
+ * @date 2026-06-18
  */
 
-#include <csignal>
-#include <cerrno>
-#include <iostream>
-#include <poll.h>
-#include <string>
-#include <termios.h>
-#include <vector>
+#include <optional>
 
-#include "conio.cpp"
+#include "tui.cpp"
 #include "../../lib/battleshipslib.h"
-
-#define ARRAY_LENGTH(array) \
-    (sizeof(array) / sizeof(array[0]))
 
 using namespace std;
 using namespace conio;
 
-volatile sig_atomic_t running = 1;
-
-void TUI_Signal_Close_Handler(int sig)
-{
-    (void)sig;
-    running = 0;
-}
-
-enum TUI_RuntimeType {
+typedef enum {
     RUNTIME_NONE,
     RUNTIME_MATCH,
     RUNTIME_CONTEST,
     RUNTIME_REPLAY_MATCH,
     RUNTIME_REPLAY_CONTEST,
-};
+} TUI_RuntimeType;
 
-struct TUI_Options {
-    TUI_RuntimeType type;
+typedef struct {
+    TUI_RuntimeType runtime;
     BShip_AIFileData ai1;
     BShip_AIFileData ai2;
     uint32_t games_per_match;
     uint8_t board_size;
+} TUI_Options;
+
+typedef struct {
+    optional<TUI_RuntimeType> runtime;
+    optional<uint8_t> board_size;
+    optional<uint32_t> games_per_match;
+    optional<BShip_AIFileData> ai1;
+    optional<BShip_AIFileData> ai2;
+    size_t runtime_selection;
+    size_t board_size_selection;
+    size_t games_per_match_selection;
+    size_t games_per_match_min;
+    size_t games_per_match_max;
+    string games_per_match_string;
+    bool games_per_match_invalid;
+    size_t ai1_selection;
+    size_t ai2_selection;
+    size_t ai_window_top;
+} TUI_OptionsState;
+
+const TUI_RuntimeType RuntimeTypeTable[] = {
+    RUNTIME_MATCH,
+    RUNTIME_CONTEST,
+    RUNTIME_REPLAY_MATCH,
+    RUNTIME_REPLAY_CONTEST,
+};
+const char* RuntimeStringTable[] = {
+    "Test AI",
+    "Run Contest",
+    "Replay Test",
+    "Replay Contest",
 };
 
-struct TUI_Cursor {
-    int row;
-    int column;
-};
-
-static inline string TUI_Cursor_Goto(TUI_Cursor cursor)
+void TUI_RuntimeType_Display(TUI_Window *window, TUI_OptionsState *state)
 {
-    return gotoRowCol(cursor.row, cursor.column);
-}
-
-static inline string TUI_Line_Append(TUI_Cursor *cursor, const char *input)
-{
-    string str = TUI_Cursor_Goto(*cursor) + clearRow() + input;
-    cursor->row++;
-    return str;
-}
-
-static inline void TUI_WriteBuffer(string buffer)
-{
-    write(STDOUT_FILENO, buffer.data(), buffer.size());
-}
-
-enum TUI_KeyPress {
-    KEY_NONE,
-    KEY_UP,
-    KEY_DOWN,
-    KEY_LEFT,
-    KEY_RIGHT,
-    KEY_BACKSPACE,
-    KEY_ENTER,
-    KEY_ESC,
-    KEY_0,
-    KEY_1,
-    KEY_2,
-    KEY_3,
-    KEY_4,
-    KEY_5,
-    KEY_6,
-    KEY_7,
-    KEY_8,
-    KEY_9,
-};
-
-TUI_KeyPress TUI_KeyPress_Get()
-{
-    struct pollfd pfd;
-    pfd.fd = STDIN_FILENO;
-    pfd.events = POLLIN;
-
-    poll(&pfd, 1, -1);
-
-    char input = '\0';
-    if (pfd.revents & POLLIN)
+    if (state->runtime_selection >= TUI_ARRAY_LENGTH(RuntimeStringTable))
     {
-        read(STDIN_FILENO, &input, 1);
+        state->runtime_selection = TUI_ARRAY_LENGTH(RuntimeStringTable)-1;
     }
-    TUI_KeyPress key = KEY_NONE;
-    switch (input)
+
+    TUI_Text prompt = TUI_Text_Default("Runtime: ");
+    TUI_TextGroup prompt_group = TUI_TextGroup_Default(prompt);
+    if (state->runtime.has_value() && state->runtime.value() != RUNTIME_NONE)
     {
-    case 'h':
-        key = KEY_LEFT;
+        TUI_Text value = {
+            .text = RuntimeStringTable[state->runtime_selection],
+            .style = BOLD,
+            .fg = RESET,
+            .bg = RESET,
+        };
+        TUI_TextGroup_Add(&prompt_group, value);
+        TUI_Window_Add(window, TUI_Line_Default(prompt_group));
+        return;
+    }
+    TUI_Window_Add(window, TUI_Line_Default(prompt_group));
+
+    for (size_t i = 0; i < TUI_ARRAY_LENGTH(RuntimeStringTable); i++)
+    {
+        string runtime_string = state->runtime_selection == i ? " > " : "    ";
+        runtime_string += RuntimeStringTable[i];
+        TUI_Text runtime = TUI_Text_Default(runtime_string);
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(runtime)));
+    }
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓ j/k  Move"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
+}
+
+bool TUI_RuntimeType_Input(TUI_OptionsState *state)
+{
+    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, false);
+    switch (input.type)
+    {
+    case INPUT_UP:
+        if (state->runtime_selection > 0) state->runtime_selection--;
         break;
-    case 'j':
-        key = KEY_DOWN;
+    case INPUT_DOWN:
+        if (state->runtime_selection < TUI_ARRAY_LENGTH(RuntimeTypeTable)-1) state->runtime_selection++;
         break;
-    case 'k':
-        key = KEY_UP;
+    case INPUT_ENTER:
+        state->runtime = RuntimeTypeTable[state->runtime_selection];
         break;
-    case 'l':
-        key = KEY_RIGHT;
-        break;
-    case 'q':
-        key = KEY_ESC;
-        break;
-    case '\r':
-    case '\n':
-        key = KEY_ENTER;
-        break;
-    case 8:
-    case 127:
-        key = KEY_BACKSPACE;
-        break;
-    case '0':
-        key = KEY_0;
-        break;
-    case '1':
-        key = KEY_1;
-        break;
-    case '2':
-        key = KEY_2;
-        break;
-    case '3':
-        key = KEY_3;
-        break;
-    case '4':
-        key = KEY_4;
-        break;
-    case '5':
-        key = KEY_5;
-        break;
-    case '6':
-        key = KEY_6;
-        break;
-    case '7':
-        key = KEY_7;
-        break;
-    case '8':
-        key = KEY_8;
-        break;
-    case '9':
-        key = KEY_9;
-        break;
+    case INPUT_ESC:
+        return true;
     default:
-        key = KEY_NONE;
+        break;
     }
-    if (input != '\x1b')
+    return false;
+}
+
+void TUI_BoardSize_Display(TUI_Window *window, TUI_OptionsState *state)
+{
+    if (state->board_size_selection < BSHIP_BOARD_SIZE_MIN)
     {
-        return key;
+        state->board_size_selection = BSHIP_BOARD_SIZE_MIN;
     }
-    int rc = poll(&pfd, 1, 50);
-    if (rc == 0)
+    else if (state->board_size_selection > BSHIP_BOARD_SIZE_MAX)
     {
-        return KEY_ESC;
+        state->board_size_selection = BSHIP_BOARD_SIZE_MAX;
     }
     
-    char a = '\0', b = '\0';
-    read(STDIN_FILENO, &a, 1);
-    if (a != '[')
+    TUI_Text prompt = TUI_Text_Default("Board Size: ");
+    TUI_TextGroup group = TUI_TextGroup_Default(prompt);
+    if (state->board_size.has_value())
     {
-        return KEY_NONE;
+        string bs = to_string(state->board_size.value());
+        if (bs.size() == 1) bs = " " + bs;
+        TUI_Text value = {
+            .text = bs,
+            .style = BOLD,
+            .fg = RESET,
+            .bg = RESET,
+        };
+        TUI_TextGroup_Add(&group, value);
+        TUI_Window_Add(window, TUI_Line_Default(group));
+        return;
     }
-    read(STDIN_FILENO, &b, 1);
-    switch (b)
+
+    string prefix = state->board_size_selection == BSHIP_BOARD_SIZE_MIN ? "  " : "- ";
+    string postfix = state->board_size_selection == BSHIP_BOARD_SIZE_MAX ? "" : " +";
+    string bs = to_string(state->board_size_selection);
+    if (bs.size() == 1) bs = " " + bs;
+    TUI_Text text = TUI_Text_Default(prefix + bs + postfix);
+    TUI_TextGroup_Add(&group, text);
+    TUI_Window_Add(window, TUI_Line_Default(group));
+
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("← → h/l  Change"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
+}
+
+bool TUI_BoardSize_Input(TUI_OptionsState *state)
+{
+    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, false);
+    switch (input.type)
     {
-    case 'A':
-        key = KEY_UP;
+    case INPUT_LEFT:
+        if (state->board_size_selection > BSHIP_BOARD_SIZE_MIN) state->board_size_selection--;
         break;
-    case 'B':
-        key = KEY_DOWN;
+    case INPUT_RIGHT:
+        if (state->board_size_selection < BSHIP_BOARD_SIZE_MAX) state->board_size_selection++;
         break;
-    case 'C':
-        key = KEY_RIGHT;
+    case INPUT_ENTER:
+        state->board_size = state->board_size_selection;
+        state->games_per_match_selection = BShip_GamesPerMatchDefault_From_BoardSize(state->board_size_selection);
+        state->games_per_match_min = BShip_GamesPerMatchMin_From_BoardSize(state->board_size_selection);
+        state->games_per_match_max = BShip_GamesPerMatchMax_From_BoardSize(state->board_size_selection);
+        state->games_per_match_string = to_string(state->games_per_match_selection);
         break;
-    case 'D':
-        key = KEY_LEFT;
-        break;
+    case INPUT_ESC:
+        return true;
     default:
-        key = KEY_NONE;
+        break;
     }
-    return key;
+    return false;
 }
 
-TUI_RuntimeType TUI_RuntimeType_Get(TUI_Cursor top, bool *should_exit)
+void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
 {
-    typedef struct {
-        string text;
-        TUI_RuntimeType type;
-    } RuntimeTypeMap;
-    RuntimeTypeMap runtimes[] = {
-        {
-            .text = "Test AI",
-            .type = RUNTIME_MATCH,
-        },
-        {
-            .text = "Run Contest",
-            .type = RUNTIME_CONTEST,
-        },
-        {
-            .text = "Replay Test",
-            .type = RUNTIME_REPLAY_MATCH,
-        },
-        {
-            .text = "Replay Contest",
-            .type = RUNTIME_REPLAY_CONTEST,
-        },
+    if (state->games_per_match_selection < state->games_per_match_min)
+    {
+        state->games_per_match_selection = state->games_per_match_min;
+    }
+    else if (state->games_per_match_selection > state->games_per_match_max)
+    {
+        state->games_per_match_selection = state->games_per_match_max;
+    }
+    TUI_Text prompt = TUI_Text_Default("Games: ");
+    TUI_TextGroup group = TUI_TextGroup_Default(prompt);
+    if (state->games_per_match.has_value())
+    {
+        string gpm = to_string(state->games_per_match.value());
+        TUI_Text value = {
+            .text = gpm,
+            .style = BOLD,
+            .fg = RESET,
+            .bg = RESET,
+        };
+        TUI_TextGroup_Add(&group, value);
+        TUI_Window_Add(window, TUI_Line_Default(group));
+        return;
+    }
+    TUI_Text value = TUI_Text_Default(state->games_per_match_string);
+    TUI_TextGroup_Add(&group, value);
+    TUI_Text cursor = {
+        .text = " ",
+        .style = NEGATIVE_IMAGE,
+        .fg = RESET,
+        .bg = RESET,
     };
+    TUI_TextGroup_Add(&group, cursor);
+    TUI_Window_Add(window, TUI_Line_Default(group));
 
-    string print_buffer = "";
-    size_t selection = 0;
-    TUI_KeyPress key = KEY_NONE;
-    TUI_Cursor cursor = top;
-
-    string prompt = "Runtime: ";
-    while (running)
+    bool invalid_number = false;
+    bool invalid_range = false;
+    try
     {
-        cursor = top;
-        print_buffer = "";
-        print_buffer += TUI_Line_Append(&cursor, prompt.c_str());
+        size_t pos = 0;
+        size_t selection = stoi(state->games_per_match_string, &pos);
 
-        for (size_t i = 0; i < ARRAY_LENGTH(runtimes); i++)
-        {
-            print_buffer += TUI_Cursor_Goto(cursor) + clearRow();
-            print_buffer += selection == i ? " > " : "    ";
-            print_buffer += runtimes[i].text;
-            cursor.row++;
-        }
-        cursor.row++;
-        print_buffer += TUI_Line_Append(&cursor, "↑ ↓ j/k  Move");
-        print_buffer += TUI_Line_Append(&cursor, "Enter    Select");
-        print_buffer += TUI_Line_Append(&cursor, "Esc/q    Quit");
-
-        TUI_WriteBuffer(print_buffer);
-
-        key = TUI_KeyPress_Get();
-
-        bool selected = false;
-        switch (key)
-        {
-        case KEY_ESC:
-            *should_exit = true;
-            return RUNTIME_NONE;
-            break;
-        case KEY_UP:
-            if (selection > 0) selection--;
-            break;
-        case KEY_DOWN:
-            if (selection < ARRAY_LENGTH(runtimes)-1) selection++;
-            break;
-        case KEY_ENTER:
-            selected = true;
-            break;
-        default:
-            break;
-        }
-        if (selected)
-        {
-            break;
-        }
-    }
-    string cleanup_buffer = "";
-    cursor.column = 1;
-    for (cursor.row = cursor.row; cursor.row >= top.row; cursor.row--)
-    {
-        cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
-    }
-    cleanup_buffer += prompt + setTextStyle(BOLD) + runtimes[selection].text + resetAll();
-    TUI_WriteBuffer(cleanup_buffer);
-
-    return runtimes[selection].type;
-}
-
-uint8_t TUI_BoardSize_Get(TUI_Cursor top, bool *should_exit)
-{
-    string print_buffer = "";
-    uint8_t selection = 10; // sets the default
-    TUI_KeyPress key = KEY_NONE;
-    TUI_Cursor cursor = top;
-
-    string prompt = "Board Size: ";
-    while (running)
-    {
-        cursor = top;
-        print_buffer = TUI_Cursor_Goto(cursor) + clearRow() + prompt;
-
-        string prefix = selection == BSHIP_BOARD_SIZE_MIN ? "  " : "- ";
-        string postfix = selection == BSHIP_BOARD_SIZE_MAX ? "" : " +";
-        string string_selection = to_string(selection);
-        if (string_selection.size() == 1) string_selection = " " + string_selection;
-        print_buffer += prefix + string_selection + postfix;
-        cursor.row += 2;
-
-        print_buffer += TUI_Line_Append(&cursor, "← → h/l  Move");
-        print_buffer += TUI_Line_Append(&cursor, "Enter    Select");
-        print_buffer += TUI_Line_Append(&cursor, "Esc/q    Quit");
-
-        TUI_WriteBuffer(print_buffer);
-
-        key = TUI_KeyPress_Get();
-
-        bool selected = false;
-        switch (key)
-        {
-        case KEY_ESC:
-            *should_exit = true;
-            return selection;
-            break;
-        case KEY_LEFT:
-            if (selection > BSHIP_BOARD_SIZE_MIN) selection--;
-            break;
-        case KEY_RIGHT:
-            if (selection < BSHIP_BOARD_SIZE_MAX) selection++;
-            break;
-        case KEY_ENTER:
-            selected = true;
-            break;
-        default:
-            break;
-        }
-        if (selected)
-        {
-            break;
-        }
-    }
-    string cleanup_buffer = "";
-    cursor.column = 1;
-    for (cursor.row = cursor.row; cursor.row >= top.row; cursor.row--)
-    {
-        cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
-    }
-    cleanup_buffer += prompt + setTextStyle(BOLD) + to_string(selection) + resetAll();
-    TUI_WriteBuffer(cleanup_buffer);
-    return selection;
-}
-
-uint32_t TUI_GamesPerMatch_Get(TUI_Cursor top, uint8_t board_size, bool *should_exit)
-{
-    TUI_WriteBuffer(showCursor());
-
-    uint32_t selection_min = BShip_GamesPerMatchMin_From_BoardSize(board_size);
-    uint32_t selection = BShip_GamesPerMatchDefault_From_BoardSize(board_size);
-    uint32_t selection_max = BShip_GamesPerMatchMax_From_BoardSize(board_size);
-    string string_selection = to_string(selection);
-    TUI_KeyPress key = KEY_NONE;
-    TUI_Cursor cursor = top;
-
-    string prompt = "Games: ";
-    while (running)
-    {
-        cursor = top;
-        string print_buffer = TUI_Cursor_Goto(cursor) + clearRow() + prompt + string_selection;
-
-        TUI_Cursor typing_cursor = cursor;
-        typing_cursor.column = prompt.size() + string_selection.size() + 1;
-        cursor.row++;
-
-        bool invalid = false;
-        bool invalid_number = false;
-        bool invalid_range = false;
-        try
-        {
-            size_t pos;
-            selection = stoi(string_selection, &pos);
-
-            if (pos != string_selection.size())
-            {
-                invalid_number = true;
-            }
-            if (selection < selection_min || selection > selection_max)
-            {
-                invalid_range = true;
-            }
-        }
-        catch (const std::invalid_argument&)
+        if (pos != state->games_per_match_string.size())
         {
             invalid_number = true;
         }
-        catch (const std::out_of_range&)
+        if (selection < state->games_per_match_min || selection > state->games_per_match_max)
         {
             invalid_range = true;
         }
-
-        invalid = (invalid_number || invalid_range);
-        if (invalid_number)
+        if (!invalid_number && !invalid_range)
         {
-            print_buffer += TUI_Cursor_Goto(cursor) + clearRow() + fgColor(RED) + "Invalid number!" + resetAll();
+            state->games_per_match_selection = selection;
         }
-        else if (invalid_range)
+    }
+    catch (const std::invalid_argument&)
+    {
+        invalid_number = true;
+    }
+    catch (const std::out_of_range&)
+    {
+        invalid_range = true;
+    }
+    state->games_per_match_invalid = (invalid_number || invalid_range);
+
+    if (invalid_number)
+    {
+        TUI_Text error = {
+            .text = "Invalid Number!",
+            .style = NORMAL_INTENSITY,
+            .fg = RED,
+            .bg = RESET,
+        };
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(error)));
+    }
+    else if (invalid_range)
+    {
+        string range = "Out of Range: ";
+        range += to_string(state->games_per_match_min) + "-" + to_string(state->games_per_match_max);
+        TUI_Text error = {
+            .text = range,
+            .style = NORMAL_INTENSITY,
+            .fg = RED,
+            .bg = RESET,
+        };
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(error)));
+    }
+
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("0-9      Edit"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Bksp     Delete"))));
+    TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"));
+    if (state->games_per_match_invalid)
+    {
+        TUI_Text disabled = {
+            .text = " (disabled)",
+            .style = BOLD,
+            .fg = RESET,
+            .bg = RESET,
+        };
+        TUI_TextGroup_Add(&enter_group, disabled);
+    }
+    TUI_Window_Add(window, TUI_Line_Default(enter_group));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
+}
+
+bool TUI_GamesPerMatch_Input(TUI_OptionsState *state)
+{
+    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, true);
+    switch (input.type)
+    {
+    case INPUT_NUM:
+        if (state->games_per_match_string.size() < 10) state->games_per_match_string.push_back(input.value);
+        break;
+    case INPUT_BACKSPACE:
+        if (state->games_per_match_string.size() > 0) state->games_per_match_string.pop_back();
+        break;
+    case INPUT_ENTER:
+        if (!state->games_per_match_invalid)
         {
-            print_buffer += TUI_Cursor_Goto(cursor) + clearRow() + fgColor(RED) +
-                "Out of Range: " + to_string(selection_min) + "-" + to_string(selection_max) + resetAll();
+            state->games_per_match = state->games_per_match_selection;
+            state->ai1_selection = 0;
+            state->ai2_selection = 0;
+            state->ai_window_top = 0;
+        }
+        break;
+    case INPUT_TEXT:
+        if (input.value == 'q') return true;
+        break;
+    case INPUT_ESC:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
+void TUI_MatchPlayer_Display(TUI_Window *window, TUI_OptionsState *state,
+    const vector<BShip_AIFileData> &ais, BShip_PlayerNum player)
+{
+    if (player == BSHIP_PLAYER_1 && state->ai1_selection >= ais.size())
+    {
+        state->ai1_selection = ais.size() - 1;
+    }
+    else if (player == BSHIP_PLAYER_2 && state->ai2_selection >= ais.size())
+    {
+        state->ai2_selection = ais.size() - 1;
+    }
+    
+    TUI_TextGroup prompt_group = TUI_TextGroup_Default(
+        TUI_Text_Default((player == BSHIP_PLAYER_1 ? "Player 1: " : "Player 2: "))
+    );
+    if ((player == BSHIP_PLAYER_1 && state->ai1.has_value()) || (player == BSHIP_PLAYER_2 && state->ai2.has_value()))
+    {
+        BShip_AIFileData ai_selection = player == BSHIP_PLAYER_1 ? state->ai1.value() : state->ai2.value();
+        TUI_Text value = {
+            .text = ai_selection.file_name,
+            .style = BOLD,
+            .fg = RESET,
+            .bg = RESET,
+        };
+        TUI_TextGroup_Add(&prompt_group, value);
+        TUI_Window_Add(window, TUI_Line_Default(prompt_group));
+        return;
+    }
+    TUI_Window_Add(window, TUI_Line_Default(prompt_group));
+
+    const size_t LEGEND_LINE_COUNT = 4; // 3 for legend, 1 for spacer.
+    const size_t MORE_LINE_COUNT = 2;
+    const size_t AI_SELECTION_LINE_COUNT_MIN = 3;
+    const size_t LINE_COUNT_MIN = LEGEND_LINE_COUNT + MORE_LINE_COUNT + AI_SELECTION_LINE_COUNT_MIN;
+    size_t height = window->size.height;
+    size_t lines = window->lines.size();
+    size_t space = (height <= lines ||  (height-lines) < LINE_COUNT_MIN ) ? LINE_COUNT_MIN : height - lines;
+    assert(space >= LINE_COUNT_MIN);
+    size_t space_without_more = space - LEGEND_LINE_COUNT;
+    assert(space_without_more < space);
+    size_t display_space = ais.size() > space_without_more ? space_without_more - MORE_LINE_COUNT : space_without_more;
+    assert(display_space <= space_without_more);
+
+    size_t ai_selection = player == BSHIP_PLAYER_1 ? state->ai1_selection : state->ai2_selection;
+    size_t ai_window_bottom = state->ai_window_top + display_space - 1;
+    if (display_space < ais.size())
+    {
+        if (ai_selection == 0)
+        {
+            state->ai_window_top = 0;
+        }
+        else if (ai_selection == ais.size() - 1)
+        {
+            state->ai_window_top = ais.size() - display_space;
+        }
+        else if (ai_selection == state->ai_window_top)
+        {
+            state->ai_window_top = ai_selection - 1;
+        }
+        else if (ai_selection == ai_window_bottom)
+        {
+            state->ai_window_top += 1;
         }
         else
         {
-            print_buffer += TUI_Cursor_Goto(cursor) + clearRow();
-        }
-        cursor.row++;
-
-        print_buffer += TUI_Line_Append(&cursor, "0-9      Edit");
-        print_buffer += TUI_Line_Append(&cursor, "Bksp     Delete");
-        print_buffer += TUI_Cursor_Goto(cursor) + clearRow() + "Enter    Select";
-        if (invalid)
-        {
-            print_buffer += setTextStyle(BOLD) + " (disabled)" + resetAll();
-        }
-        cursor.row++;
-        print_buffer += TUI_Line_Append(&cursor, "Esc/q    Quit");
-
-        print_buffer += TUI_Cursor_Goto(typing_cursor);
-
-        TUI_WriteBuffer(print_buffer);
-
-        key = TUI_KeyPress_Get();
-
-        bool selected = false;
-        switch (key)
-        {
-        case KEY_ESC:
-            *should_exit = true;
-            goto on_cleanup;
-            break;
-        case KEY_BACKSPACE:
-            if (string_selection.size() > 0) string_selection.pop_back();
-            break;
-        case KEY_0:
-            string_selection.push_back('0');
-            break;
-        case KEY_1:
-            string_selection.push_back('1');
-            break;
-        case KEY_2:
-            string_selection.push_back('2');
-            break;
-        case KEY_3:
-            string_selection.push_back('3');
-            break;
-        case KEY_4:
-            string_selection.push_back('4');
-            break;
-        case KEY_5:
-            string_selection.push_back('5');
-            break;
-        case KEY_6:
-            string_selection.push_back('6');
-            break;
-        case KEY_7:
-            string_selection.push_back('7');
-            break;
-        case KEY_8:
-            string_selection.push_back('8');
-            break;
-        case KEY_9:
-            string_selection.push_back('9');
-            break;
-        case KEY_ENTER:
-            if (!invalid) selected = true;
-            break;
-        default:
-            break;
-        }
-        if (selected)
-        {
-            break;
+            assert(ai_selection >= state->ai_window_top);
+            assert(ai_selection < state->ai_window_top + display_space);
         }
     }
-on_cleanup:
-    string cleanup_buffer = hideCursor();
-    cursor.column = 1;
-    for (cursor.row = cursor.row; cursor.row >= top.row; cursor.row--)
+    else 
     {
-        cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
+        state->ai_window_top = 0;
     }
-    cleanup_buffer += prompt + setTextStyle(BOLD) + to_string(selection) + resetAll();
-    TUI_WriteBuffer(cleanup_buffer);
-    return selection;
+
+    if (display_space < ais.size())
+    {
+        string more_above = state->ai_window_top == 0 ? "" : "↑ " + to_string(state->ai_window_top) + " more";
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(more_above))));
+    }
+
+    for (size_t i = 0; i < ais.size(); i++)
+    {
+        if (i < state->ai_window_top) continue;
+        else if (i > (state->ai_window_top + display_space-1)) break;
+
+        string ai = i == ai_selection ? " > " : "    ";
+        ai += ais.at(i).file_name;
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(ai))));
+    }
+
+    if (display_space < ais.size())
+    {
+        string more_below = ai_window_bottom == ais.size()-1 ? "" : "↓ " + to_string((ais.size()-1) - ai_window_bottom) + " more";
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(more_below))));
+    }
+
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓ j/k  Move"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-BShip_AIFileData TUI_MatchPlayer_Get(TUI_Cursor top, vector<BShip_AIFileData> ais,
-    BShip_PlayerNum player, bool *should_exit)
+bool TUI_MatchPlayer_Input(TUI_OptionsState *state, const vector<BShip_AIFileData> &ais, BShip_PlayerNum player)
 {
-    string print_buffer = "";
-    size_t selection = 0;
-    TUI_KeyPress key = KEY_NONE;
-    TUI_Cursor cursor = top;
-    const size_t WINDOW_SIZE = 10;
-    size_t window_top = 0;
-
-    string prompt = player == BSHIP_PLAYER_1 ? "Player 1: " : "Player 2: ";
-    while (running && !(*should_exit))
+    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, false);
+    size_t *ai_selection_ref = player == BSHIP_PLAYER_1 ? &state->ai1_selection : &state->ai2_selection;
+    switch (input.type)
     {
-        cursor = top;
-        print_buffer = "";
-        print_buffer += TUI_Line_Append(&cursor, prompt.c_str());
-
-        if (ais.size() > WINDOW_SIZE)
+    case INPUT_UP:
+        if (*ai_selection_ref > 0) (*ai_selection_ref)--;
+        break;
+    case INPUT_DOWN:
+        if (*ai_selection_ref < ais.size()-1) (*ai_selection_ref)++;
+        break;
+    case INPUT_ENTER:
+        if (player == BSHIP_PLAYER_1)
         {
-            string more = "";
-            if (window_top > 0)
-            {
-                more += "↑ " + to_string(window_top) + " more";
-            }
-            print_buffer += TUI_Line_Append(&cursor, more.c_str());
+            state->ai1 = ais.at(state->ai1_selection);
         }
-
-        for (size_t i = 0; i < ais.size(); i++)
+        else
         {
-            if (i < window_top) continue;
-            else if (i >= window_top + WINDOW_SIZE) break;
-
-            string prefix = selection == i ? " > " : "    ";
-            string row = prefix + ais.at(i).file_name;
-            print_buffer += TUI_Line_Append(&cursor, row.c_str());
+            state->ai2 = ais.at(state->ai2_selection);
         }
-        if (ais.size() > WINDOW_SIZE)
-        {
-            string more = "";
-            size_t top_count = ais.size() - (window_top + WINDOW_SIZE);
-            if (top_count > 0)
-            {
-                more += "↓ " + to_string(top_count) + " more";
-            }
-            print_buffer += TUI_Line_Append(&cursor, more.c_str());
-        }
-        print_buffer += TUI_Line_Append(&cursor, "");
-        print_buffer += TUI_Line_Append(&cursor, "↑ ↓ j/k  Move");
-        print_buffer += TUI_Line_Append(&cursor, "Enter    Select");
-        print_buffer += TUI_Line_Append(&cursor, "Esc/q    Quit");
-
-        TUI_WriteBuffer(print_buffer);
-
-        key = TUI_KeyPress_Get();
-
-        bool selected = false;
-        switch (key)
-        {
-        case KEY_ESC:
-            *should_exit = true;
-            break;
-        case KEY_UP:
-            if (selection > 0) selection--;
-            if (window_top > 0 && selection == window_top) window_top--;
-            break;
-        case KEY_DOWN:
-            if (selection < ais.size()-1) selection++;
-            if (window_top + WINDOW_SIZE < ais.size() && selection == window_top + WINDOW_SIZE - 1) window_top++;
-            break;
-        case KEY_ENTER:
-            selected = true;
-            break;
-        default:
-            break;
-        }
-        if (selected)
-        {
-            break;
-        }
+        state->ai_window_top = 0;
+        break;
+    case INPUT_ESC:
+        return true;
+    default:
+        break;
     }
-    string cleanup_buffer = "";
-    cursor.column = 1;
-    for (cursor.row = cursor.row; cursor.row >= top.row; cursor.row--)
-    {
-        cleanup_buffer += TUI_Cursor_Goto(cursor) + clearRow();
-    }
-    cleanup_buffer += prompt + setTextStyle(BOLD) + ais.at(selection).file_name + resetAll();
-    TUI_WriteBuffer(cleanup_buffer);
-
-    return ais.at(selection);
+    return false;
 }
 
-bool TUI_Options_Get(TUI_Options *options, vector<BShip_AIFileData> ais, bool debug)
+bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, bool debug)
 {
     bool should_exit = false;
 
-    struct termios original = {};
-    tcgetattr(STDIN_FILENO, &original);
+    (void)options;
+    (void)ais;
+    (void)debug;
+    vector<string> ascii_banner = {
+        "  ____        _   _   _           _",
+        " | __ )  __ _| |_| |_| | ___  ___| |__  _ _ __  ___",
+        " |  _ \\ / _` | __| __| |/ _ \\/ __| '_ \\| | '_ \\/ __|",
+        " | |_) | (_| | |_| |_| |  __/\\__ \\ | | | | |_) \\__ \\",
+        " |____/ \\__,_|\\__|\\__|_|\\___||___/_| |_|_| .__/|___/",
+        "                                         |_|",
+        "",
+    };
+    vector<string> text_banner = {
+        "                B A T T L E S H I P S",
+        "----------------------------------------------------",
+    };
+    uint32_t ascii_banner_height_min = (ascii_banner.size() + text_banner.size()) * 5;
 
-    struct termios raw = original;
-    raw.c_lflag &= ~(ICANON | ECHO);
-    raw.c_cc[VMIN] = 1; // Wait until at least 1 byte is available.
-    raw.c_cc[VTIME] = 0; // No timeout
-    tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    TUI_Window window = {};
+    TUI_WindowSize_Get(&window.size);
 
-    typedef struct {
-        int signum;
-        sighandler_t handler;
-    } SignalHandler;
-
-    SignalHandler signals[] = {
-        {
-            .signum = SIGINT,
-            .handler = TUI_Signal_Close_Handler,
-        },
-        {
-            .signum = SIGTERM,
-            .handler = TUI_Signal_Close_Handler,
-        },
-        {
-            .signum = SIGSEGV,
-            .handler = TUI_Signal_Close_Handler,
-        },
-        {
-            .signum = SIGQUIT,
-            .handler = TUI_Signal_Close_Handler,
-        },
+    TUI_OptionsState state = {
+        .runtime = {},
+        .board_size = {},
+        .games_per_match = {},
+        .ai1 = {},
+        .ai2 = {},
+        // defaults
+        .runtime_selection = 0,
+        .board_size_selection = 10,
+        // NOTE(mattg): We'll set this after we get the board size
+        .games_per_match_selection = 0,
+        .games_per_match_min = 0,
+        .games_per_match_max = 0,
+        .games_per_match_string = "",
+        .games_per_match_invalid = false,
+        .ai1_selection = 0,
+        .ai2_selection = 0,
+        .ai_window_top = 0,
     };
 
-    TUI_Cursor cursor = {1, 1};
-    string start_buffer = enterAltScreen() + clearScreen() + hideCursor() + TUI_Cursor_Goto(cursor);
-    string banner = R"(
-  ____        _   _   _           _
- | __ )  __ _| |_| |_| | ___  ___| |__  _ _ __  ___
- |  _ \ / _` | __| __| |/ _ \/ __| '_ \| | '_ \/ __|
- | |_) | (_| | |_| |_| |  __/\__ \ | | | | |_) \__ \
- |____/ \__,_|\__|\__|_|\___||___/_| |_|_| .__/|___/
-                                         |_|
-
-                B A T T L E S H I P S
-----------------------------------------------------
-)";
-    start_buffer += banner;
-    cursor.row += 10;
-    if (debug)
+    if (!TUI_Window_Enter(&window))
     {
-        start_buffer += TUI_Cursor_Goto(cursor) + "DEBUG MODE ENABLED";
-        cursor.row++;
+        should_exit = true;
+        goto on_exit;
     }
-    cursor.row++;
 
-    for (size_t i = 0; i < ARRAY_LENGTH(signals); i++)
+    while (!TUI_Should_Close() && !should_exit)
     {
-        SignalHandler sig = signals[i];
-        if (signal(sig.signum, sig.handler) == SIG_ERR)
+        TUI_Window_Print(&window);
+
+        if (TUI_Should_Resize())
         {
-            PRINT_ERROR("signals failed");
-            goto on_exit;
+            TUI_WindowSize_Get(&window.size);
         }
-    }
-    TUI_WriteBuffer(start_buffer);
+        TUI_Window_Reset(&window);
+        if (debug)
+        {
+            string width_height = to_string(window.size.width) + "x" + to_string(window.size.height);
+            TUI_Line debug_line = TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(width_height)));
+            TUI_Window_Add(&window, debug_line);
+        }
+        
+        if (window.size.height >= ascii_banner_height_min)
+        {
+            for (size_t i = 0; i < ascii_banner.size(); i++)
+            {
+                TUI_Text text = TUI_Text_Default(ascii_banner.at(i));
+                TUI_TextGroup group = TUI_TextGroup_Default(text);
+                TUI_Line line = TUI_Line_Default(group);
+                TUI_Window_Add(&window, line);
+            }
+        }
+        for (size_t i = 0; i < text_banner.size(); i++)
+        {
+            TUI_Text text = TUI_Text_Default(text_banner.at(i));
+            TUI_TextGroup group = TUI_TextGroup_Default(text);
+            TUI_Line line = TUI_Line_Default(group);
+            TUI_Window_Add(&window, line);
+        }
 
-    options->type = TUI_RuntimeType_Get(cursor, &should_exit);
-    if (should_exit || !running)
-    {
-        goto on_exit;
-    }
+        TUI_RuntimeType_Display(&window, &state);
+        if (!state.runtime.has_value())
+        {
+            should_exit = TUI_RuntimeType_Input(&state);
+            continue;
+        }
+        else options->runtime = state.runtime.value();
 
-    cursor.row++;
-    options->board_size = TUI_BoardSize_Get(cursor, &should_exit);
-    if (should_exit || !running)
-    {
-        goto on_exit;
-    }
+        TUI_BoardSize_Display(&window, &state);
+        if (!state.board_size.has_value())
+        {
+            should_exit = TUI_BoardSize_Input(&state);
+            continue;
+        }
+        else options->board_size = state.board_size.value();
 
-    cursor.row++;
-    options->games_per_match = TUI_GamesPerMatch_Get(cursor, options->board_size, &should_exit);
-    if (should_exit || !running)
-    {
-        goto on_exit;
-    }
+        TUI_GamesPerMatch_Display(&window, &state);
+        if (!state.games_per_match.has_value())
+        {
+            should_exit = TUI_GamesPerMatch_Input(&state);
+            continue;
+        }
+        else options->games_per_match = state.games_per_match.value();
 
-    cursor.row++;
-    options->ai1 = TUI_MatchPlayer_Get(cursor, ais, BSHIP_PLAYER_1, &should_exit);
-    if (should_exit || !running)
-    {
-        goto on_exit;
-    }
+        TUI_MatchPlayer_Display(&window, &state, ais, BSHIP_PLAYER_1);
+        if (!state.ai1.has_value())
+        {
+            should_exit = TUI_MatchPlayer_Input(&state, ais, BSHIP_PLAYER_1);
+            continue;
+        }
+        else options->ai1 = state.ai1.value();
 
-    cursor.row++;
-    options->ai2 = TUI_MatchPlayer_Get(cursor, ais, BSHIP_PLAYER_2, &should_exit);
-    if (should_exit || !running)
-    {
-        goto on_exit;
-    }
+        TUI_MatchPlayer_Display(&window, &state, ais, BSHIP_PLAYER_2);
+        if (!state.ai2.has_value())
+        {
+            should_exit = TUI_MatchPlayer_Input(&state, ais, BSHIP_PLAYER_2);
+            continue;
+        }
+        else options->ai2 = state.ai2.value();
 
+        break;
+    }
 on_exit:
-    string end_buffer = resetAll() + showCursor() + leaveAltScreen();
-    TUI_WriteBuffer(end_buffer);
-    for (size_t i = 0; i < ARRAY_LENGTH(signals); i++)
-    {
-        int signum = signals[i].signum;
-        signal(signum, SIG_DFL);
-    }
-    tcsetattr(STDIN_FILENO, TCSANOW, &original);
-
-    if (!running)
+    TUI_Window_Exit(&window);
+    if (TUI_Should_Close())
     {
         should_exit = true;
     }
