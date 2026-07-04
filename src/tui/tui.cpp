@@ -99,19 +99,25 @@ void TUI_Buffer_Write(std::string &buffer)
 }
 
 typedef struct {
-    std::string text;
-    conio::TextStyle style;
+    std::vector<conio::TextStyle> styles;
     conio::Color fg;
     conio::Color bg;
+} TUI_Style;
+
+typedef struct {
+    std::string text;
+    TUI_Style style;
 } TUI_Text;
 
 TUI_Text TUI_Text_Default(const std::string &str)
 {
     TUI_Text text = {
         .text = std::move(str),
-        .style = conio::NORMAL_INTENSITY,
-        .fg = conio::RESET,
-        .bg = conio::RESET,
+        .style = {
+            .styles = {},
+            .fg = conio::RESET,
+            .bg = conio::RESET,
+        },
     };
     return text;
 }
@@ -173,12 +179,18 @@ std::string TUI_String_From_TextGroup(TUI_TextGroup &group, uint32_t space)
                 text.text += ELLIPSIS;
             }
         }
-        buffer += text.style == conio::NORMAL_INTENSITY ? "" : conio::setTextStyle(text.style);
-        buffer += text.fg == conio::RESET ? "" : conio::fgColor(text.fg);
-        buffer += text.bg == conio::RESET ? "" : conio::bgColor(text.bg);
+        for (size_t i = 0; i < text.style.styles.size(); i++)
+        {
+            buffer += conio::setTextStyle(text.style.styles.at(i));
+        }
+        buffer += text.style.fg == conio::RESET ? "" : conio::fgColor(text.style.fg);
+        buffer += text.style.bg == conio::RESET ? "" : conio::bgColor(text.style.bg);
         buffer += text.text;
-        buffer += (text.style != conio::NORMAL_INTENSITY || text.fg != conio::RESET || text.bg != conio::RESET)
-            ? conio::resetAll() : "";
+        buffer += (
+            text.style.styles.size() > 0 ||
+            text.style.fg != conio::RESET ||
+            text.style.bg != conio::RESET
+        ) ? conio::resetAll() : "";
         text_width += text.text.size();
     }
     return buffer;
@@ -321,7 +333,6 @@ TUI_Input TUI_Input_Get()
     TUI_Input input = {};
     if (!(pfd.revents & POLLIN))
     {
-        input.value = '\0';
         return input;
     }
     read(STDIN_FILENO, &input.value, 1);
@@ -358,7 +369,6 @@ TUI_Input TUI_Input_Get()
         input.type = INPUT_BACKSPACE;
         break;
     default:
-        input.value = '\0';
         input.type = INPUT_NONE;
     }
 
@@ -377,7 +387,6 @@ TUI_Input TUI_Input_Get()
     read(STDIN_FILENO, &check1, 1);
     if (check1 != '[')
     {
-        input.value = '\0';
         input.type = INPUT_NONE;
         return input;
     }
@@ -397,7 +406,6 @@ TUI_Input TUI_Input_Get()
         input.type = INPUT_LEFT;
         break;
     default:
-        input.value = '\0';
         input.type = INPUT_NONE;
     }
     return input;
