@@ -143,25 +143,40 @@ TUI_TextGroup TUI_TextGroup_Default(const TUI_Text &text)
 
 std::string TUI_String_From_TextGroup(TUI_TextGroup &group, uint32_t space)
 {
+    const std::string ELLIPSIS = "...";
+    const size_t ELLIPSIS_LENGTH = ELLIPSIS.size();
+    assert(space < INT32_MAX);
     std::string buffer = "";
     if (space <= 3)
     {
-        buffer += "...";
+        buffer += ELLIPSIS;
         return buffer;
     }
-    uint32_t text_width = 0;
+    int32_t text_width = 0;
     for (size_t i = 0; i < group.text.size(); i++)
     {
         TUI_Text &text = group.text.at(i);
-        if (text_width >= space)
+        if (text_width >= (int32_t)space)
         {
             break;
         }
-        uint32_t leftover_space = space - text_width;
-        if (text.text.size() > leftover_space)
+        int32_t leftover_space = (int32_t)space - text_width;
+        assert(leftover_space >= 0);
+        
+        if ((int32_t)text.text.size() > leftover_space)
         {
-            text.text.resize(leftover_space-3);
-            text.text += "...";
+            if (leftover_space < (int32_t)ELLIPSIS_LENGTH)
+            {
+                text.text.resize(0);
+                text.text = ELLIPSIS.substr(0, leftover_space);
+            }
+            else
+            {
+                int32_t resize_length = leftover_space - ELLIPSIS_LENGTH;
+                assert(resize_length >= 0);
+                text.text.resize(resize_length);
+                text.text += ELLIPSIS;
+            }
         }
         buffer += text.style == conio::NORMAL_INTENSITY ? "" : conio::setTextStyle(text.style);
         buffer += text.fg == conio::RESET ? "" : conio::fgColor(text.fg);
