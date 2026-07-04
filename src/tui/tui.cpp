@@ -18,10 +18,6 @@
 
 #include "conio.cpp"
 
-#define TUI_INPUT_60FPS 16
-#define TUI_INPUT_30FPS 33
-#define TUI_INPUT_SLOW 100
-
 #define TUI_ARRAY_LENGTH(array) (sizeof(array) / sizeof(array[0]))
 
 volatile sig_atomic_t GLOBAL_RUNNING = 1;
@@ -99,8 +95,7 @@ static const TUI_SignalHandler GLOBAL_TUI_SIGNALS[] = {
 
 void TUI_Buffer_Write(std::string &buffer)
 {
-    ssize_t ret = write(STDOUT_FILENO, buffer.data(), buffer.size());
-    (void)ret;
+    write(STDOUT_FILENO, buffer.data(), buffer.size());
 }
 
 typedef struct {
@@ -242,7 +237,7 @@ bool TUI_Window_Enter(TUI_Window *window)
 
     struct termios raw = window->original;
     raw.c_lflag &= ~(ICANON | ECHO);
-    raw.c_cc[VMIN] = 0;  // Don't wait for any bytes to be available.
+    raw.c_cc[VMIN] = 1;  // Wait for at least 1 byte to be available.
     raw.c_cc[VTIME] = 0; // No timeout
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
@@ -308,7 +303,6 @@ typedef enum {
     INPUT_ENTER,
     INPUT_ESC,
     INPUT_NUM,
-    INPUT_TEXT,
 } TUI_InputType;
 
 typedef struct {
@@ -316,34 +310,28 @@ typedef struct {
     char value;
 } TUI_Input;
 
-TUI_Input TUI_Input_Get(int poll_timeout, bool alphanumeric)
+TUI_Input TUI_Input_Get()
 {
     struct pollfd pfd = {};
     pfd.fd = STDIN_FILENO;
     pfd.events = POLLIN;
 
-    poll(&pfd, 1, poll_timeout);
+    poll(&pfd, 1, -1);
 
     TUI_Input input = {};
     if (!(pfd.revents & POLLIN))
     {
+        input.value = '\0';
         return input;
     }
-    ssize_t ret = read(STDIN_FILENO, &input.value, 1);
-    (void)ret;
-    if (alphanumeric)
+    read(STDIN_FILENO, &input.value, 1);
+
+    if (input.value >= '0' && input.value <= '9')
     {
-        if (input.value >= '0' && input.value <= '9')
-        {
-            input.type = INPUT_NUM;
-            return input;
-        }
-        else if ((input.value >= 'A' && input.value <= 'Z') || (input.value >= 'a' && input.value <= 'z'))
-        {
-            input.type = INPUT_TEXT;
-            return input;
-        }
+        input.type = INPUT_NUM;
+        return input;
     }
+
     switch (input.value)
     {
     case 'h':
@@ -370,6 +358,7 @@ TUI_Input TUI_Input_Get(int poll_timeout, bool alphanumeric)
         input.type = INPUT_BACKSPACE;
         break;
     default:
+        input.value = '\0';
         input.type = INPUT_NONE;
     }
 
@@ -385,15 +374,14 @@ TUI_Input TUI_Input_Get(int poll_timeout, bool alphanumeric)
         return input;
     }
     char check1 = '\0', check2 = '\0';
-    ssize_t ret1 = read(STDIN_FILENO, &check1, 1);
-    (void)ret1;
+    read(STDIN_FILENO, &check1, 1);
     if (check1 != '[')
     {
+        input.value = '\0';
         input.type = INPUT_NONE;
         return input;
     }
-    ssize_t ret2 = read(STDIN_FILENO, &check2, 1);
-    (void)ret2;
+    read(STDIN_FILENO, &check2, 1);
     switch (check2)
     {
     case 'A':
@@ -409,6 +397,7 @@ TUI_Input TUI_Input_Get(int poll_timeout, bool alphanumeric)
         input.type = INPUT_LEFT;
         break;
     default:
+        input.value = '\0';
         input.type = INPUT_NONE;
     }
     return input;

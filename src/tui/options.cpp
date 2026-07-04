@@ -96,9 +96,8 @@ void TUI_RuntimeType_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_RuntimeType_Input(TUI_OptionsState *state)
+bool TUI_RuntimeType_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
 {
-    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, false);
     switch (input.type)
     {
     case INPUT_UP:
@@ -109,6 +108,7 @@ bool TUI_RuntimeType_Input(TUI_OptionsState *state)
         break;
     case INPUT_ENTER:
         state->runtime = RuntimeTypeTable[state->runtime_selection];
+        options->runtime = state->runtime.value();
         break;
     case INPUT_ESC:
         return true;
@@ -160,9 +160,8 @@ void TUI_BoardSize_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_BoardSize_Input(TUI_OptionsState *state)
+bool TUI_BoardSize_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
 {
-    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, false);
     switch (input.type)
     {
     case INPUT_LEFT:
@@ -173,6 +172,7 @@ bool TUI_BoardSize_Input(TUI_OptionsState *state)
         break;
     case INPUT_ENTER:
         state->board_size = state->board_size_selection;
+        options->board_size = state->board_size_selection;
         state->games_per_match_selection = BShip_GamesPerMatchDefault_From_BoardSize(state->board_size_selection);
         state->games_per_match_min = BShip_GamesPerMatchMin_From_BoardSize(state->board_size_selection);
         state->games_per_match_max = BShip_GamesPerMatchMax_From_BoardSize(state->board_size_selection);
@@ -293,9 +293,8 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_GamesPerMatch_Input(TUI_OptionsState *state)
+bool TUI_GamesPerMatch_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
 {
-    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, true);
     switch (input.type)
     {
     case INPUT_NUM:
@@ -308,13 +307,12 @@ bool TUI_GamesPerMatch_Input(TUI_OptionsState *state)
         if (!state->games_per_match_invalid)
         {
             state->games_per_match = state->games_per_match_selection;
+            options->games_per_match = state->games_per_match_selection;
+
             state->ai1_selection = 0;
             state->ai2_selection = 0;
             state->ai_window_top = 0;
         }
-        break;
-    case INPUT_TEXT:
-        if (input.value == 'q') return true;
         break;
     case INPUT_ESC:
         return true;
@@ -426,9 +424,9 @@ void TUI_MatchPlayer_Display(TUI_Window *window, TUI_OptionsState *state,
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_MatchPlayer_Input(TUI_OptionsState *state, const vector<BShip_AIFileData> &ais, BShip_PlayerNum player)
+bool TUI_MatchPlayer_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input,
+    const vector<BShip_AIFileData> &ais, BShip_PlayerNum player)
 {
-    TUI_Input input = TUI_Input_Get(TUI_INPUT_60FPS, false);
     size_t *ai_selection_ref = player == BSHIP_PLAYER_1 ? &state->ai1_selection : &state->ai2_selection;
     switch (input.type)
     {
@@ -442,10 +440,12 @@ bool TUI_MatchPlayer_Input(TUI_OptionsState *state, const vector<BShip_AIFileDat
         if (player == BSHIP_PLAYER_1)
         {
             state->ai1 = ais.at(state->ai1_selection);
+            options->ai1 = ais.at(state->ai1_selection);
         }
         else
         {
             state->ai2 = ais.at(state->ai2_selection);
+            options->ai2 = ais.at(state->ai2_selection);
         }
         state->ai_window_top = 0;
         break;
@@ -457,13 +457,73 @@ bool TUI_MatchPlayer_Input(TUI_OptionsState *state, const vector<BShip_AIFileDat
     return false;
 }
 
+bool TUI_Options_Display(TUI_Window *window, TUI_OptionsState *state, const vector<BShip_AIFileData> &ais)
+{
+    TUI_RuntimeType_Display(window, state);
+    if (!state->runtime.has_value()) return false;
+
+    TUI_RuntimeType runtime = state->runtime.has_value() ? state->runtime.value() : RUNTIME_NONE;
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_CONTEST)
+    {
+        TUI_BoardSize_Display(window, state);
+        if (!state->board_size.has_value()) return false;
+
+        TUI_GamesPerMatch_Display(window, state);
+        if (!state->games_per_match.has_value()) return false;
+    }
+
+    if (runtime == RUNTIME_MATCH)
+    {
+        TUI_MatchPlayer_Display(window, state, ais, BSHIP_PLAYER_1);
+        if (!state->ai1.has_value()) return false;
+
+        TUI_MatchPlayer_Display(window, state, ais, BSHIP_PLAYER_2);
+        if (!state->ai2.has_value()) return false;
+    }
+    return true;
+}
+
+bool TUI_Options_Input(TUI_OptionsState *state, TUI_Options *options, const vector<BShip_AIFileData> &ais)
+{
+    TUI_Input input = TUI_Input_Get();
+
+    if (!state->runtime.has_value())
+    {
+        return TUI_RuntimeType_Input(state, options, input);
+    }
+    TUI_RuntimeType runtime = state->runtime.has_value() ? state->runtime.value() : RUNTIME_NONE;
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_CONTEST)
+    {
+        if (!state->board_size.has_value())
+        {
+            return TUI_BoardSize_Input(state, options, input);
+        }
+        
+        if (!state->games_per_match.has_value())
+        {
+            return TUI_GamesPerMatch_Input(state, options, input);
+        }
+    }
+
+    if (runtime == RUNTIME_MATCH)
+    {
+        if (!state->ai1.has_value())
+        {
+            return TUI_MatchPlayer_Input(state, options, input, ais, BSHIP_PLAYER_1);
+        }
+
+        if (!state->ai2.has_value())
+        {
+            return TUI_MatchPlayer_Input(state, options, input, ais, BSHIP_PLAYER_2);
+        }
+    }
+    return false;
+}
+
 bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, bool debug)
 {
     bool should_exit = false;
 
-    (void)options;
-    (void)ais;
-    (void)debug;
     vector<string> ascii_banner = {
         "  ____        _   _   _           _",
         " | __ )  __ _| |_| |_| | ___  ___| |__  _ _ __  ___",
@@ -491,7 +551,6 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
         // defaults
         .runtime_selection = 0,
         .board_size_selection = 10,
-        // NOTE(mattg): We'll set this after we get the board size
         .games_per_match_selection = 0,
         .games_per_match_min = 0,
         .games_per_match_max = 0,
@@ -510,8 +569,6 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
 
     while (!TUI_Should_Close() && !should_exit)
     {
-        TUI_Window_Print(&window);
-
         if (TUI_Should_Resize())
         {
             TUI_WindowSize_Get(&window.size);
@@ -542,47 +599,16 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
             TUI_Window_Add(&window, line);
         }
 
-        TUI_RuntimeType_Display(&window, &state);
-        if (!state.runtime.has_value())
+        // NOTE(mattg): TUI_Options_Display returns true if all necessary state has been input.
+        if (TUI_Options_Display(&window, &state, ais))
         {
-            should_exit = TUI_RuntimeType_Input(&state);
-            continue;
+            break;
         }
-        else options->runtime = state.runtime.value();
 
-        TUI_BoardSize_Display(&window, &state);
-        if (!state.board_size.has_value())
-        {
-            should_exit = TUI_BoardSize_Input(&state);
-            continue;
-        }
-        else options->board_size = state.board_size.value();
+        TUI_Window_Print(&window);
 
-        TUI_GamesPerMatch_Display(&window, &state);
-        if (!state.games_per_match.has_value())
-        {
-            should_exit = TUI_GamesPerMatch_Input(&state);
-            continue;
-        }
-        else options->games_per_match = state.games_per_match.value();
+        should_exit = TUI_Options_Input(&state, options, ais);
 
-        TUI_MatchPlayer_Display(&window, &state, ais, BSHIP_PLAYER_1);
-        if (!state.ai1.has_value())
-        {
-            should_exit = TUI_MatchPlayer_Input(&state, ais, BSHIP_PLAYER_1);
-            continue;
-        }
-        else options->ai1 = state.ai1.value();
-
-        TUI_MatchPlayer_Display(&window, &state, ais, BSHIP_PLAYER_2);
-        if (!state.ai2.has_value())
-        {
-            should_exit = TUI_MatchPlayer_Input(&state, ais, BSHIP_PLAYER_2);
-            continue;
-        }
-        else options->ai2 = state.ai2.value();
-
-        break;
     }
 on_exit:
     TUI_Window_Exit(&window);
