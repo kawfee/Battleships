@@ -6,10 +6,8 @@ MODE="${1:-debug}"
 
 
 COMMON_FLAGS=(
-    -std=c99
     -Wall
     -Wextra
-    -pedantic
 )
 
 DEBUG_FLAGS=(
@@ -23,16 +21,15 @@ RELEASE_FLAGS=(
     -Werror
     -O3
     -march=native
-    -flto
 )
 
 case "$MODE" in
     debug)
-        CC=gcc
+        CC=g++
         CFLAGS=("${COMMON_FLAGS[@]}" "${DEBUG_FLAGS[@]}")
         ;;
     release)
-        CC=clang
+        CC=g++
         CFLAGS=("${COMMON_FLAGS[@]}" "${RELEASE_FLAGS[@]}")
         ;;
     *)
@@ -44,5 +41,5 @@ esac
 cd lib && ./build.sh "$MODE" && cd ..
 
 echo "building battleships..."
-$CC "${CFLAGS[@]}" main.c lib/battleshipslib.a -o battleships -lm
+$CC "${CFLAGS[@]}" main.cpp lib/battleshipslib.a -o battleships -lm
 
