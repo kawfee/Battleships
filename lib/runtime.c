@@ -277,12 +277,16 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     {
         return match;
     }
+    memset(match.ai1.name, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    memset(match.ai1.authors, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
     match.ai2.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
     match.ai2.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
     if (match.ai2.name == NULL || match.ai2.authors == NULL)
     {
         return match;
     }
+    memset(match.ai2.name, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    memset(match.ai2.authors, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
 
     BShip_Connection *conn = BShip_Arena_Push(arena, BShip_Connection_GetSize());
     if (conn == NULL)

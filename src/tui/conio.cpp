@@ -210,12 +210,34 @@ std::string hideCursor( ) {
     return strm.str();
 }
 
+/** \brief Returns a string that contains the escape sequences to
+ * enable mouse input reporting.
+ * \return A string containing the entire escape sequence to be output
+ *      to the terminal to enable mouse input reporting.
+ */
+std::string enableMouseInput( ) {
+    std::ostringstream strm;
+    strm << CSI << "?1000h" << CSI << "?1006h";
+    return strm.str();
+}
+
+/** \brief Returns a string that contains the escape sequences to
+ * disable mouse input reporting.
+ * \return A string containing the entire escape sequence to be output
+ *      to the terminal to disable mouse input reporting.
+ */
+std::string disableMouseInput( ) {
+    std::ostringstream strm;
+    strm << CSI << "?1000l" << CSI << "?1006l";
+    return strm.str();
+}
+
 /** \brief Returns a string that contains the escape sequence to clear
  * the screen.
  * \return A string containing the entire escape sequence to be output
  *     to the terminal to clear the screen.
  */
-std::string clearScreen() {
+std::string clearScreen( ) {
     std::ostringstream strm;	// create the string stream
     strm << CSI << "H" << CSI << "2J";		// insert the goodies
     return strm.str();		// return a string with the info
@@ -226,7 +248,7 @@ std::string clearScreen() {
  * \return A string containing the entire escape sequence to be output
  *     to the terminal to clear the row.
  */
-std::string clearRow() {
+std::string clearRow( ) {
     std::ostringstream strm;
     strm << CSI << 2 << 'K';
     return strm.str();

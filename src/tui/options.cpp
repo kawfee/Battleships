@@ -1,17 +1,14 @@
 /**
  * @file options.cpp
  * @author Matthew Getgen
- * @brief Battleships tui input options.
+ * @brief Battleships TUI input options.
  * @date 2026-06-18
  */
 
 #include <optional>
 
-#include "tui.cpp"
+#include "shared.cpp"
 #include "../../lib/battleshipslib.h"
-
-using namespace std;
-using namespace conio;
 
 typedef enum {
     RUNTIME_NONE,
@@ -71,15 +68,9 @@ void TUI_RuntimeType_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_TextGroup prompt_group = TUI_TextGroup_Default(prompt);
     if (state->runtime.has_value() && state->runtime.value() != RUNTIME_NONE)
     {
-        TUI_Text value = {
-            .text = RuntimeStringTable[state->runtime_selection],
-            .style = {
-                .styles = { BOLD },
-                .fg = RESET,
-                .bg = RESET,
-            },
-        };
-        TUI_TextGroup_Add(&prompt_group, value);
+        TUI_TextGroup_Add(&prompt_group,
+            TUI_Text_New(RuntimeStringTable[state->runtime_selection], { BOLD }, RESET, RESET)
+        );
         TUI_Window_Add(window, TUI_Line_Default(prompt_group));
         return;
     }
@@ -137,15 +128,7 @@ void TUI_BoardSize_Display(TUI_Window *window, TUI_OptionsState *state)
     {
         string bs = to_string(state->board_size.value());
         if (bs.size() == 1) bs = " " + bs;
-        TUI_Text value = {
-            .text = bs,
-            .style = {
-                .styles = { BOLD, },
-                .fg = RESET,
-                .bg = RESET,
-            },
-        };
-        TUI_TextGroup_Add(&group, value);
+        TUI_TextGroup_Add(&group, TUI_Text_New(bs, { BOLD }, RESET, RESET));
         TUI_Window_Add(window, TUI_Line_Default(group));
         return;
     }
@@ -205,29 +188,12 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     if (state->games_per_match.has_value())
     {
         string gpm = to_string(state->games_per_match.value());
-        TUI_Text value = {
-            .text = gpm,
-            .style = {
-                .styles = { BOLD },
-                .fg = RESET,
-                .bg = RESET,
-            },
-        };
-        TUI_TextGroup_Add(&group, value);
+        TUI_TextGroup_Add(&group, TUI_Text_New(gpm, { BOLD }, RESET, RESET));
         TUI_Window_Add(window, TUI_Line_Default(group));
         return;
     }
-    TUI_Text value = TUI_Text_Default(state->games_per_match_string);
-    TUI_TextGroup_Add(&group, value);
-    TUI_Text cursor = {
-        .text = " ",
-        .style = {
-            .styles = { NEGATIVE_IMAGE, },
-            .fg = RESET,
-            .bg = RESET,
-        },
-    };
-    TUI_TextGroup_Add(&group, cursor);
+    TUI_TextGroup_Add(&group, TUI_Text_Default(state->games_per_match_string));
+    TUI_TextGroup_Add(&group, TUI_Text_New(" ", { NEGATIVE_IMAGE }, RESET, RESET));
     TUI_Window_Add(window, TUI_Line_Default(group));
 
     bool invalid_number = false;
@@ -262,29 +228,17 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
 
     if (invalid_number)
     {
-        TUI_Text error = {
-            .text = "Invalid Number!",
-            .style = {
-                .styles = {},
-                .fg = RED,
-                .bg = RESET,
-            },
-        };
-        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(error)));
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(
+            TUI_Text_New("Invalid Number!", {}, RED, RESET)
+        )));
     }
     else if (invalid_range)
     {
         string range = "Out of Range: ";
         range += to_string(state->games_per_match_min) + "-" + to_string(state->games_per_match_max);
-        TUI_Text error = {
-            .text = range,
-            .style = {
-                .styles = {},
-                .fg = RED,
-                .bg = RESET,
-            },
-        };
-        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(error)));
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(
+            TUI_Text_New(range, {}, RED, RESET)
+        )));
     }
 
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
@@ -293,15 +247,7 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"));
     if (state->games_per_match_invalid)
     {
-        TUI_Text disabled = {
-            .text = " (disabled)",
-            .style = {
-                .styles = { BOLD },
-                .fg = RESET,
-                .bg = RESET,
-            },
-        };
-        TUI_TextGroup_Add(&enter_group, disabled);
+        TUI_TextGroup_Add(&enter_group, TUI_Text_New(" (disabled)", { BOLD }, RESET, RESET));
     }
     TUI_Window_Add(window, TUI_Line_Default(enter_group));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
@@ -354,15 +300,7 @@ void TUI_MatchPlayer_Display(TUI_Window *window, TUI_OptionsState *state,
     if ((player == BSHIP_PLAYER_1 && state->ai1.has_value()) || (player == BSHIP_PLAYER_2 && state->ai2.has_value()))
     {
         BShip_AIFileData ai_selection = player == BSHIP_PLAYER_1 ? state->ai1.value() : state->ai2.value();
-        TUI_Text value = {
-            .text = ai_selection.file_name,
-            .style = {
-                .styles = { BOLD },
-                .fg = RESET,
-                .bg = RESET,
-            },
-        };
-        TUI_TextGroup_Add(&prompt_group, value);
+        TUI_TextGroup_Add(&prompt_group, TUI_Text_New(ai_selection.file_name, { BOLD }, RESET, RESET));
         TUI_Window_Add(window, TUI_Line_Default(prompt_group));
         return;
     }
@@ -499,10 +437,9 @@ bool TUI_Options_Display(TUI_Window *window, TUI_OptionsState *state, const vect
     return true;
 }
 
-bool TUI_Options_Input(TUI_OptionsState *state, TUI_Options *options, const vector<BShip_AIFileData> &ais)
+bool TUI_Options_Input(TUI_Input input, TUI_OptionsState *state, TUI_Options *options,
+    const vector<BShip_AIFileData> &ais)
 {
-    TUI_Input input = TUI_Input_Get();
-
     if (!state->runtime.has_value())
     {
         return TUI_RuntimeType_Input(state, options, input);
@@ -577,7 +514,9 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
         .ai_window_top = 0,
     };
 
-    if (!TUI_Window_Enter(&window))
+    TUI_Input input = {};
+
+    if (!TUI_Window_Enter(&window, true))
     {
         should_exit = true;
         goto on_exit;
@@ -590,11 +529,10 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
             TUI_WindowSize_Get(&window.size);
         }
         TUI_Window_Reset(&window);
+
         if (debug)
         {
-            string width_height = to_string(window.size.width) + "x" + to_string(window.size.height);
-            TUI_Line debug_line = TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(width_height)));
-            TUI_Window_Add(&window, debug_line);
+            TUI_Debug_Line_Add(&window, input);
         }
         
         if (window.size.height >= ascii_banner_height_min)
@@ -623,7 +561,9 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
 
         TUI_Window_Print(&window);
 
-        should_exit = TUI_Options_Input(&state, options, ais);
+        input = TUI_Input_Get(true, 0);
+        TUI_Input_ScrollState_Get(&window, input);
+        should_exit = TUI_Options_Input(input, &state, options, ais);
     }
 on_exit:
     TUI_Window_Exit(&window);

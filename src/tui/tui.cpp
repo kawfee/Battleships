@@ -5,6 +5,9 @@
  * @date 2026-06-18
  */
 
+#ifndef TUI_CPP
+#define TUI_CPP
+
 #include <csignal>
 #include <cerrno>
 #include <iostream>
@@ -42,7 +45,7 @@ bool TUI_Should_Close(void)
 
 bool TUI_Should_Resize(void)
 {
-    return GLOBAL_RESIZED;
+    return !!GLOBAL_RESIZED;
 }
 
 typedef struct {
@@ -102,11 +105,11 @@ typedef struct {
     std::vector<conio::TextStyle> styles;
     conio::Color fg;
     conio::Color bg;
-} TUI_Style;
+} TUI_TextStyle;
 
 typedef struct {
     std::string text;
-    TUI_Style style;
+    TUI_TextStyle style;
 } TUI_Text;
 
 TUI_Text TUI_Text_Default(const std::string &str)
@@ -120,6 +123,25 @@ TUI_Text TUI_Text_Default(const std::string &str)
         },
     };
     return text;
+}
+
+TUI_Text TUI_Text_New(const std::string &str,
+    std::vector<conio::TextStyle> styles, conio::Color fg, conio::Color bg)
+{
+    TUI_Text text = {
+        .text = std::move(str),
+        .style = {
+            .styles = styles,
+            .fg = fg,
+            .bg = bg,
+        },
+    };
+    return text;
+}
+
+size_t TUI_Text_Size(const TUI_Text &text)
+{
+    return text.text.size();
 }
 
 typedef struct {
@@ -140,6 +162,16 @@ TUI_TextGroup TUI_TextGroup_Default(const TUI_Text &text)
     };
     TUI_TextGroup_Add(&group, text);
     return group;
+}
+
+size_t TUI_TextGroup_Size(const TUI_TextGroup &group)
+{
+    size_t size = 0;
+    for (size_t i = 0; i < group.text.size(); i++)
+    {
+        size += TUI_Text_Size(group.text.at(i));
+    }
+    return size;
 }
 
 std::string TUI_String_From_TextGroup(TUI_TextGroup &group, uint32_t space)
@@ -164,15 +196,16 @@ std::string TUI_String_From_TextGroup(TUI_TextGroup &group, uint32_t space)
         int32_t leftover_space = (int32_t)space - text_width;
         assert(leftover_space >= 0);
         
-        if ((int32_t)text.text.size() > leftover_space)
+        if ((int32_t)TUI_Text_Size(text) > leftover_space)
         {
-            if (leftover_space < (int32_t)ELLIPSIS_LENGTH)
+            if (leftover_space <= (int32_t)ELLIPSIS_LENGTH)
             {
                 text.text.resize(0);
                 text.text = ELLIPSIS.substr(0, leftover_space);
             }
             else
             {
+                // TODO(mattg): redo this work to be unicode and glyph-aware
                 int32_t resize_length = leftover_space - ELLIPSIS_LENGTH;
                 assert(resize_length >= 0);
                 text.text.resize(resize_length);
@@ -191,7 +224,7 @@ std::string TUI_String_From_TextGroup(TUI_TextGroup &group, uint32_t space)
             text.style.fg != conio::RESET ||
             text.style.bg != conio::RESET
         ) ? conio::resetAll() : "";
-        text_width += text.text.size();
+        text_width += TUI_Text_Size(text);
     }
     return buffer;
 }
@@ -239,18 +272,21 @@ std::string TUI_String_From_Line(TUI_Line &line, uint32_t row, uint32_t window_w
 typedef struct {
     struct termios original;
     TUI_WindowSize size;
+    uint32_t scroll_index;
     std::vector<TUI_Line> lines;
     std::string buffer;
 } TUI_Window;
 
-bool TUI_Window_Enter(TUI_Window *window)
+bool TUI_Window_Enter(TUI_Window *window, bool wait_for_input)
 {
     tcgetattr(STDIN_FILENO, &window->original);
 
     struct termios raw = window->original;
     raw.c_lflag &= ~(ICANON | ECHO);
-    raw.c_cc[VMIN] = 1;  // Wait for at least 1 byte to be available.
-    raw.c_cc[VTIME] = 0; // No timeout
+    // whether to wait for x bytes of input or not
+    raw.c_cc[VMIN] = wait_for_input ? 1 : 0;
+    // No timeout
+    raw.c_cc[VTIME] = 0; 
     tcsetattr(STDIN_FILENO, TCSANOW, &raw);
 
     for (size_t i = 0; i < TUI_ARRAY_LENGTH(GLOBAL_TUI_SIGNALS); i++)
@@ -262,7 +298,8 @@ bool TUI_Window_Enter(TUI_Window *window)
             return false;
         }
     }
-    window->buffer = conio::enterAltScreen() + conio::clearScreen() + conio::hideCursor();
+    window->buffer = conio::enterAltScreen() + conio::clearScreen() +
+        conio::hideCursor() + conio::enableMouseInput();
     TUI_Buffer_Write(window->buffer);
 
     return true;
@@ -270,7 +307,8 @@ bool TUI_Window_Enter(TUI_Window *window)
 
 void TUI_Window_Exit(TUI_Window *window)
 {
-    window->buffer = conio::resetAll() + conio::showCursor() + conio::leaveAltScreen();
+    window->buffer = conio::resetAll() + conio::leaveAltScreen() +
+        conio::showCursor() + conio::disableMouseInput();
     TUI_Buffer_Write(window->buffer);
 
     for (size_t i = 0; i < TUI_ARRAY_LENGTH(GLOBAL_TUI_SIGNALS); i++)
@@ -297,8 +335,17 @@ void TUI_Window_Print(TUI_Window *window)
 {
     window->buffer.clear();
     window->buffer = conio::resetAll() + conio::clearScreen() + conio::gotoRowCol(1, 1);
-    size_t line_count = window->lines.size() > window->size.height ? window->size.height : window->lines.size();
-    for (size_t i = 0, row = 1; i < line_count; i++, row++)
+    size_t line_count = window->lines.size();
+    size_t window_height = window->size.height;
+    if (window->scroll_index >= line_count)
+    {
+        window->scroll_index = line_count - 1;
+    }
+    if (line_count < window_height)
+    {
+        window->scroll_index = 0;
+    }
+    for (size_t i = window->scroll_index, row = 1; i < line_count && row <= window_height; i++, row++)
     {
         window->buffer += TUI_String_From_Line(window->lines.at(i), row, window->size.width);
     }
@@ -311,6 +358,8 @@ typedef enum {
     INPUT_DOWN,
     INPUT_LEFT,
     INPUT_RIGHT,
+    INPUT_SCROLL_UP,
+    INPUT_SCROLL_DOWN,
     INPUT_BACKSPACE,
     INPUT_ENTER,
     INPUT_ESC,
@@ -322,13 +371,14 @@ typedef struct {
     char value;
 } TUI_Input;
 
-TUI_Input TUI_Input_Get()
+TUI_Input TUI_Input_Get(bool wait_for_input, int32_t timeout_ms)
 {
     struct pollfd pfd = {};
     pfd.fd = STDIN_FILENO;
     pfd.events = POLLIN;
 
-    poll(&pfd, 1, -1);
+    int32_t timeout = wait_for_input ? -1 : timeout_ms;
+    poll(&pfd, 1, timeout);
 
     TUI_Input input = {};
     if (!(pfd.revents & POLLIN))
@@ -391,6 +441,7 @@ TUI_Input TUI_Input_Get()
         return input;
     }
     read(STDIN_FILENO, &check2, 1);
+    bool mouse_input = false;
     switch (check2)
     {
     case 'A':
@@ -405,9 +456,58 @@ TUI_Input TUI_Input_Get()
     case 'D':
         input.type = INPUT_LEFT;
         break;
+    case '<':
+        mouse_input = true;
+        break;
     default:
         input.type = INPUT_NONE;
     }
+    if (!mouse_input)
+    {
+        return input;
+    }
+    int numbers[] = { 0, 0, 0 };
+    size_t idx = 0;
+    char mouse_check = '\0';
+    while (mouse_check != 'M' && mouse_check != 'm' && idx < TUI_ARRAY_LENGTH(numbers))
+    {
+        read(STDIN_FILENO, &mouse_check, 1);
+        if (mouse_check >= '0' && mouse_check <= '9')
+        {
+            numbers[idx] = (numbers[idx] * 10) + (mouse_check - '0');
+        }
+        else if (mouse_check == ';')
+        {
+            idx++;
+        }
+        else if (mouse_check == 'M' || mouse_check == 'm')
+        {
+            break;
+        }
+        else return input;
+    }
+    if (numbers[0] == 64) input.type = INPUT_SCROLL_UP;
+    else if (numbers[0] == 65) input.type = INPUT_SCROLL_DOWN;
+
     return input;
 }
+
+void TUI_Input_ScrollState_Get(TUI_Window *window, TUI_Input input)
+{
+    if (input.type == INPUT_SCROLL_UP) 
+    {
+        if (window->scroll_index > 0)
+        {
+            window->scroll_index--;
+        }
+    }
+    else if (input.type == INPUT_SCROLL_DOWN)
+    {
+        // NOTE(mattg): we can't know bounds unless we know the line count and we can't be sure at this
+        // point yet.
+        window->scroll_index++;
+    }
+}
+
+#endif // TUI_CPP
 

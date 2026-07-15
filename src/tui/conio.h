@@ -59,6 +59,8 @@ namespace conio {
     std::string leaveAltScreen();
     std::string showCursor();
     std::string hideCursor();
+    std::string enableMouseInput();
+    std::string disableMouseInput();
     std::string clearScreen();
     std::string clearRow();
 }

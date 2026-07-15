@@ -12,6 +12,7 @@
 
 #include "lib/battleshipslib.h"
 #include "src/tui/options.cpp"
+#include "src/tui/results.cpp"
 
 // typedef struct {
 //     long cycles;
@@ -180,7 +181,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
 
 int main(void)
 {
-    bool debug = false;
+    bool debug = true;
     BShip_Arena string_arena = {};
     BShip_Arena_Initialize(&string_arena, 0); // 0 creates default size.
     vector<BShip_AIFileData> ais = GetAIs(&string_arena);
@@ -198,8 +199,11 @@ int main(void)
         BShip_Arena arena = {};
         BShip_Arena_Initialize(&arena, match_memory_size);
 
-        BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock", options.ai1, options.ai2,
-            options.board_size, options.games_per_match, debug);
+        BShip_MatchData match = BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock",
+            options.ai1, options.ai2, options.board_size, options.games_per_match, debug);
+
+        TUI_Match_Display(match, debug);
+
         BShip_Arena_Destroy(&arena);
     }
     else
