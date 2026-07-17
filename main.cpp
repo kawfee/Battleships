@@ -202,7 +202,7 @@ int main(void)
         BShip_MatchData match = BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock",
             options.ai1, options.ai2, options.board_size, options.games_per_match, debug);
 
-        TUI_Match_Display(match, debug);
+        TUI_Match_Display(match, true, 500, debug);
 
         BShip_Arena_Destroy(&arena);
     }

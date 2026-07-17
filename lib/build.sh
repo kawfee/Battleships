@@ -13,6 +13,7 @@ COMMON_FLAGS=(
     -Wall
     -Wextra
     -pedantic
+    -fshort-enums
 )
 
 DEBUG_FLAGS=(

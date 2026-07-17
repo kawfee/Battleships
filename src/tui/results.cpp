@@ -106,20 +106,204 @@ void TUI_TextGroup_Add_Board(vector<TUI_TextGroup> &group, const string &name,
 
 typedef struct {
     uint32_t game_index;
-    uint32_t ship_index;
-    uint32_t shot_index;
+    uint32_t event_index;
 } TUI_GameStepState;
 
-void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state,
-    BShip_MatchData match, BShip_Board ai1_board, BShip_Board ai2_board)
+void TUI_Store_Ship(BShip_Board board, BShip_Ship ship, BShip_BoardValue value)
+{
+    uint8_t row_multiplier = ship.direction == BSHIP_VERTICAL;
+    uint8_t column_multiplier = ship.direction == BSHIP_HORIZONTAL;
+    for (uint8_t i = 0; i < ship.length; i++)
+    {
+        uint8_t row = ship.row + (i * row_multiplier);
+        uint8_t column = ship.column + (i * column_multiplier);
+        BShip_Board_Set(board, row, column, value);
+    }
+}
+
+void TUI_GameStepState_Apply(TUI_GameStepState state, BShip_MatchData match,
+    BShip_Board ai1_board, BShip_Board ai2_board)
+{
+    assert(state.game_index < match.game_indexes.length);
+    assert(state.event_index < match.events.length);
+
+    uint32_t game_start_event_index = match.game_indexes.buffer[state.game_index];
+    assert(game_start_event_index < match.events.length);
+    assert(game_start_event_index <= state.event_index);
+
+    memset(ai1_board.buffer, BSHIP_WATER, ai1_board.size * ai1_board.size);
+    memset(ai2_board.buffer, BSHIP_WATER, ai2_board.size * ai2_board.size);
+
+    uint32_t event_index = game_start_event_index;
+    while (event_index < match.events.length && event_index <= state.event_index)
+    {
+        BShip_Event event = match.events.buffer[event_index];
+        if (event.type == BSHIP_EVENT_SHIP_PLACEMENT)
+        {
+            assert(event.value.indexes.ai1_ship_index < match.ai1.ships.length);
+            assert(event.value.indexes.ai2_ship_index < match.ai2.ships.length);
+            BShip_Ship ai1_ship = match.ai1.ships.buffer[event.value.indexes.ai1_ship_index];
+            BShip_Ship ai2_ship = match.ai2.ships.buffer[event.value.indexes.ai2_ship_index];
+            TUI_Store_Ship(ai1_board, ai1_ship, BSHIP_SHIP);
+            TUI_Store_Ship(ai2_board, ai2_ship, BSHIP_SHIP);
+        }
+        else if (event.type == BSHIP_EVENT_SHOT_RESULT)
+        {
+            assert(event.value.indexes.ai1_shot_index < match.ai1.shots.length);
+            assert(event.value.indexes.ai2_shot_index < match.ai2.shots.length);
+            BShip_Shot ai1_shot = match.ai1.shots.buffer[event.value.indexes.ai1_shot_index];
+            BShip_Shot ai2_shot = match.ai2.shots.buffer[event.value.indexes.ai2_shot_index];
+            BShip_Board_Set(ai1_board, ai2_shot.row, ai2_shot.column, ai2_shot.value);
+            BShip_Board_Set(ai2_board, ai1_shot.row, ai1_shot.column, ai1_shot.value);
+
+            if (event.value.indexes.ai1_ship_index > 0)
+            {
+                assert(event.value.indexes.ai1_ship_index < match.ai1.ships.length);
+                BShip_Ship ai1_dead_ship = match.ai1.ships.buffer[event.value.indexes.ai1_ship_index];
+                TUI_Store_Ship(ai1_board, ai1_dead_ship, BSHIP_KILL);
+            }
+            if (event.value.indexes.ai2_ship_index > 0)
+            {
+                assert(event.value.indexes.ai2_ship_index < match.ai2.ships.length);
+                BShip_Ship ai2_dead_ship = match.ai2.ships.buffer[event.value.indexes.ai2_ship_index];
+                TUI_Store_Ship(ai2_board, ai2_dead_ship, BSHIP_KILL);
+            }
+        }
+        else if (event.type == BSHIP_EVENT_GAME_START)
+        {
+            if (event_index > game_start_event_index) break;
+        }
+        else break;
+        event_index++;
+    }
+}
+
+TUI_TextGroup TUI_TextGroup_Make_ShipPlacementEvent(BShip_Ship ship, BShip_PlayerNum player)
+{
+    Color player_color = player == BSHIP_PLAYER_1 ? PLAYER_1_COLOR : PLAYER_2_COLOR;
+    string direction_string = ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL";
+    TUI_TextGroup group = TUI_TextGroup_Default(TUI_Text_New(direction_string, { BOLD }, player_color, RESET));
+
+    string ship_event_string = " @ [" + to_string(ship.row) + "," + to_string(ship.column) + "] x "
+        + to_string(ship.length);
+    TUI_TextGroup_Add(&group, TUI_Text_New(ship_event_string, {}, player_color, RESET));
+    return group;
+}
+
+TUI_TextGroup TUI_TextGroup_Make_ShotPlacementEvent(BShip_Shot shot, BShip_PlayerNum player)
+{
+    Color player_color = player == BSHIP_PLAYER_1 ? PLAYER_1_COLOR : PLAYER_2_COLOR;
+    string shot_value_string = "";
+    switch (shot.value)
+    {
+    case BSHIP_WATER:
+    case BSHIP_SHIP:
+        assert(false);
+        break;
+    case BSHIP_HIT:
+        shot_value_string = "HIT";
+        break;
+    case BSHIP_DUPLICATE_HIT:
+        shot_value_string = "DUPLICATE HIT";
+        break;
+    case BSHIP_MISS:
+        shot_value_string = "MISS";
+        break;
+    case BSHIP_DUPLICATE_MISS:
+        shot_value_string = "DUPLICATE MISS";
+        break;
+    case BSHIP_KILL:
+        shot_value_string = "KILL";
+        break;
+    case BSHIP_DUPLICATE_KILL:
+        shot_value_string = "DUPLICATE KILL";
+        break;
+    }
+    TUI_TextGroup group = TUI_TextGroup_Default(TUI_Text_New(shot_value_string, { BOLD }, player_color, RESET));
+
+    string shot_event_string =" @ [" + to_string(shot.row) + "," + to_string(shot.column) + "]";
+    TUI_TextGroup_Add(&group, TUI_Text_New(shot_event_string, {}, player_color, RESET));
+    return group;
+}
+
+TUI_TextGroup TUI_TextGroup_Make_GameResultEvent(BShip_GameResult result, const string &name,
+    BShip_PlayerNum player)
+{
+    Color player_color = player == BSHIP_PLAYER_1 ? PLAYER_1_COLOR : PLAYER_2_COLOR;
+    TUI_TextGroup group = TUI_TextGroup_Default(TUI_Text_New(name, { BOLD }, player_color, RESET));
+    string result_string = " ";
+    switch (result)
+    {
+    case BSHIP_WIN:
+        result_string += "won!";
+        break;
+    case BSHIP_LOSS:
+        result_string += "lost";
+        break;
+    case BSHIP_TIE:
+        result_string += "tied";
+        break;
+    }
+    TUI_TextGroup_Add(&group, TUI_Text_Default(result_string));
+    return group;
+}
+
+void TUI_TextGroups_Add_EventDescriptions(vector<TUI_TextGroup> &ai1_group, vector<TUI_TextGroup> &ai2_group,
+    BShip_MatchData match, BShip_Event event)
+{
+    BShip_Ship ai1_ship = {}, ai2_ship = {};
+    BShip_Shot ai1_shot = {}, ai2_shot = {};
+    BShip_GameResult ai1_result = BSHIP_WIN, ai2_result = BSHIP_WIN;
+    switch (event.type)
+    {
+    case BSHIP_EVENT_NONE:
+    case BSHIP_EVENT_GAME_START:
+        // NOTE(mattg): These events display nothing
+        break;
+    case BSHIP_EVENT_SHIP_PLACEMENT:
+        assert(event.value.indexes.ai1_ship_index < match.ai1.ships.length);
+        assert(event.value.indexes.ai2_ship_index < match.ai2.ships.length);
+        ai1_ship = match.ai1.ships.buffer[event.value.indexes.ai1_ship_index];
+        ai2_ship = match.ai2.ships.buffer[event.value.indexes.ai2_ship_index];
+        ai1_group.push_back(TUI_TextGroup_Make_ShipPlacementEvent(ai1_ship, BSHIP_PLAYER_1));
+        ai2_group.push_back(TUI_TextGroup_Make_ShipPlacementEvent(ai2_ship, BSHIP_PLAYER_2));
+        break;
+    case BSHIP_EVENT_SHOT_RESULT:
+        assert(event.value.indexes.ai1_shot_index < match.ai1.shots.length);
+        assert(event.value.indexes.ai2_shot_index < match.ai2.shots.length);
+        ai1_shot = match.ai1.shots.buffer[event.value.indexes.ai1_shot_index];
+        if (event.value.indexes.ai1_ship_index > 0)
+        {
+            ai1_shot.value = BSHIP_KILL;
+        }
+        ai2_shot = match.ai2.shots.buffer[event.value.indexes.ai2_shot_index];
+        if (event.value.indexes.ai1_ship_index > 0)
+        {
+            ai1_shot.value = BSHIP_KILL;
+        }
+        ai1_group.push_back(TUI_TextGroup_Make_ShotPlacementEvent(ai2_shot, BSHIP_PLAYER_2));
+        ai2_group.push_back(TUI_TextGroup_Make_ShotPlacementEvent(ai1_shot, BSHIP_PLAYER_1));
+        break;
+    case BSHIP_EVENT_GAME_RESULT:
+        ai1_result = event.value.ai1_game_result;
+        ai2_result = ai1_result == BSHIP_TIE ? BSHIP_TIE :
+            ai1_result == BSHIP_WIN ? BSHIP_LOSS : BSHIP_WIN;
+        ai1_group.push_back(TUI_TextGroup_Make_GameResultEvent(ai1_result, match.ai1.name, BSHIP_PLAYER_1));
+        ai2_group.push_back(TUI_TextGroup_Make_GameResultEvent(ai2_result, match.ai2.name, BSHIP_PLAYER_2));
+        break;
+    }
+}
+
+void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState state, BShip_MatchData match,
+    BShip_Board ai1_board, BShip_Board ai2_board)
 {
     string ai1_name = match.ai1.name, ai2_name = match.ai2.name;
-    size_t board_display_width = match.board_size + 12;
-    size_t name_display_width = ai1_name.size() + 12;
+    size_t board_display_width = match.board_size + 15;
+    size_t name_display_width = ai1_name.size() + 15;
     size_t board2_column_offset = board_display_width > name_display_width
         ? board_display_width : name_display_width;
 
-    uint32_t game_num = match.games_per_match;
+    uint32_t game_num = state.game_index + 1;
     string game_num_str = "Game #" + to_string(game_num);
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(game_num_str))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
@@ -131,6 +315,10 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state,
     TUI_TextGroup_Add_Board(ai1_group, match.ai1.name, ai1_board, BSHIP_PLAYER_1);
     TUI_TextGroup_Add_Board(ai2_group, match.ai2.name, ai2_board, BSHIP_PLAYER_2);
 
+    assert(state.event_index < match.events.length);
+    BShip_Event event = match.events.buffer[state.event_index];
+    TUI_TextGroups_Add_EventDescriptions(ai1_group, ai2_group, match, event);
+
     assert(ai1_group.size() == ai2_group.size());
 
     for (size_t i = 0; i < ai1_group.size(); i++)
@@ -140,6 +328,35 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state,
         TUI_Line_Add(&line, ai2_group.at(i));
         TUI_Window_Add(window, line);
     }
+}
+
+bool TUI_GameStepState_Input(TUI_GameStepState *state, TUI_Input input,
+    BShip_MatchData match, bool automatic_stepping)
+{
+    // true for both types
+    if (input.type == INPUT_ESC)
+    {
+        return true;
+    }
+    if (automatic_stepping)
+    {
+        assert(state->event_index < match.events.length);
+        if (state->event_index < match.events.length-1)
+        {
+            state->event_index++;
+
+            BShip_Event event = match.events.buffer[state->event_index];
+            if (event.type == BSHIP_EVENT_GAME_START)
+            {
+                state->game_index++;
+            }
+        }
+    }
+    else
+    {
+        // TODO(mattg): handle input and take a step in any direction.
+    }
+    return false;
 }
 
 void TUI_VS_Display(TUI_Window *window, TUI_TextGroup &ai1_vs_group, TUI_TextGroup &ai2_vs_group)
@@ -195,7 +412,7 @@ TUI_TextGroup TUI_Player_VS_Get(BShip_AIMatchData match, BShip_PlayerNum player)
     return player_vs;
 }
 
-void TUI_Match_Display(BShip_MatchData match, bool debug)
+void TUI_Match_Display(BShip_MatchData match, bool automatic_stepping, int32_t step_delay_ms, bool debug)
 {
     TUI_Window window = {};
     TUI_WindowSize_Get(&window.size);
@@ -213,8 +430,8 @@ void TUI_Match_Display(BShip_MatchData match, bool debug)
 
     TUI_Input input = {};
 
-    bool wait_for_input = false;
-    if (!TUI_Window_Enter(&window, wait_for_input))
+    // Automatic stepping means wait for input
+    if (!TUI_Window_Enter(&window, !automatic_stepping))
     {
         goto on_exit;
     }
@@ -232,12 +449,26 @@ void TUI_Match_Display(BShip_MatchData match, bool debug)
             TUI_Debug_Line_Add(&window, input);
         }
 
+        TUI_GameStepState_Apply(state, match, ai1_board, ai2_board);
+
         TUI_VS_Display(&window, ai1_vs_group, ai2_vs_group);
 
-        TUI_GameStepState_Display(&window, &state, match, ai1_board, ai2_board);
+        TUI_GameStepState_Display(&window, state, match, ai1_board, ai2_board);
 
         TUI_Window_Print(&window);
-        sleep(1);
+
+        int32_t delay_ms = step_delay_ms;
+        if (state.event_index < match.events.length && 
+            match.events.buffer[state.event_index].type == BSHIP_EVENT_GAME_RESULT)
+        {
+            delay_ms = 5000; // 5 seconds
+        }
+        input = TUI_Input_Get(!automatic_stepping, delay_ms);
+        TUI_Input_ScrollState_Get(&window, input);
+        if (TUI_GameStepState_Input(&state, input, match, automatic_stepping))
+        {
+            break;
+        }
     }
 
 on_exit:
@@ -245,3 +476,4 @@ on_exit:
     BShip_Arena_Destroy(&arena);
     return;
 }
+

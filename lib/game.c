@@ -121,6 +121,8 @@ void ShipLengths_Calculate(BShip_U8Array *array, uint8_t board_size)
     }
 }
 
+BSHIP_DEFINE_ARRAY_PUSH(BShip_U8Array, uint8_t)
+
 void BShip_U8Array_SwapBack(BShip_U8Array *array, uint8_t index)
 {
     assert(array != NULL);
@@ -137,107 +139,93 @@ void BShip_U8Array_SwapBack(BShip_U8Array *array, uint8_t index)
     array->buffer[array->length] = 0;
 }
 
-BShip_Error ValidateAndStoreShips(BShip_Board board, BShip_ShipArray *ships,
-    BShip_U8Array *alive_ships, BShip_U8Array *ship_lengths)
+BShip_Error ValidateAndStoreShip(BShip_Board board, BShip_Ship ship, BShip_U8Array *ship_lengths)
 {
     assert(board.buffer != NULL);
     assert(board.size >= BSHIP_BOARD_SIZE_MIN);
     assert(board.size <= BSHIP_BOARD_SIZE_MAX);
-    assert(ships != NULL);
-    assert(ships->buffer != NULL);
-    assert(alive_ships != NULL);
-    assert(alive_ships->buffer != NULL);
-    assert(ships->capacity == alive_ships->capacity);
     assert(ship_lengths != NULL);
     assert(ship_lengths->buffer != NULL);
     // NOTE(mattg): this check should have already been handled by the messages.
-    assert(ships->length == ship_lengths->length);
     BShip_Error error = {
         .type = ERROR_SUCCESS,
     };
 
-    for (uint8_t i = 0; i < ships->length; i++)
+    bool valid_length = false;
+    for (uint8_t j = 0; j < ship_lengths->length; j++)
     {
-        BShip_Ship ship = ships->buffer[i];
-        // We are going to support returning a ship array in any 
-        bool valid_length = false;
+        if (ship.length == ship_lengths->buffer[j])
+        {
+            valid_length = true;
+            BShip_U8Array_SwapBack(ship_lengths, j);
+            break;
+        }
+    }
+    if (!valid_length)
+    {
+        error.type = ERROR_SHIP_LENGTH_INVALID;
+        error.value.ship = ship;
+        PRINT_ERROR_F("Ship returned with length: %d", ship.length);
+        fprintf(stderr, "\tbut expected one of: [ ");
         for (uint8_t j = 0; j < ship_lengths->length; j++)
         {
-            if (ship.length == ship_lengths->buffer[j])
+            if (j == 0)
             {
-                valid_length = true;
-                BShip_U8Array_SwapBack(ship_lengths, j);
-                break;
+                fprintf(stderr, "%d", ship_lengths->buffer[j]);
+            }
+            else
+            {
+                fprintf(stderr, ", %d", ship_lengths->buffer[j]);
             }
         }
-        if (!valid_length)
-        {
-            error.type = ERROR_SHIP_LENGTH_INVALID;
-            error.ship = ship;
-            PRINT_ERROR_F("Ship returned with length: %d", ship.length);
-            fprintf(stderr, "\tbut expected one of: [ ");
-            for (uint8_t j = 0; j < ship_lengths->length; j++)
-            {
-                if (j == 0)
-                {
-                    fprintf(stderr, "%d", ship_lengths->buffer[j]);
-                }
-                else
-                {
-                    fprintf(stderr, ", %d", ship_lengths->buffer[j]);
-                }
-            }
-            fprintf(stderr, " ]\n");
-            return error;
-        }
+        fprintf(stderr, " ]\n");
+        return error;
+    }
         
-        uint8_t front = 0, end = board.size, check = 0;
-        switch (ship.direction)
+    uint8_t front = 0, end = board.size, check = 0;
+    switch (ship.direction)
+    {
+    case BSHIP_HORIZONTAL:
+        front = ship.column;
+        end = ship.column + (ship.length - 1);
+        check = ship.row;
+        break;
+    case BSHIP_VERTICAL:
+        front = ship.row;
+        end = ship.row + (ship.length - 1);
+        check = ship.column;
+        break;
+    }
+    if (front >= board.size || end >= board.size || check >= board.size)
+    {
+        error.type = ERROR_SHIP_OFF_BOARD;
+        error.value.ship = ship;
+        PRINT_ERROR_F("Ship returned doesn't fit on a %dx%d board", board.size, board.size);
+        fprintf(stderr, "\trow: %d\n\tcolumn: %d\n\tlength: %d\n\tdirection: %s\n",
+            ship.row, ship.column, ship.length,
+            ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL");
+        return error;
+    }
+    uint8_t row_multiplier = ship.direction == BSHIP_VERTICAL;
+    uint8_t column_multiplier = ship.direction == BSHIP_HORIZONTAL;
+    for (uint8_t i = 0; i < ship.length; i++)
+    {
+        uint8_t row = ship.row + (i * row_multiplier);
+        uint8_t column = ship.column + (i * column_multiplier);
+        if (BShip_Board_Get(board, row, column) != BSHIP_WATER)
         {
-        case BSHIP_HORIZONTAL:
-            front = ship.column;
-            end = ship.column + (ship.length - 1);
-            check = ship.row;
-            break;
-        case BSHIP_VERTICAL:
-            front = ship.row;
-            end = ship.row + (ship.length - 1);
-            check = ship.column;
-            break;
-        }
-        if (front >= board.size || end >= board.size || check >= board.size)
-        {
-            error.type = ERROR_SHIP_OFF_BOARD;
-            error.ship = ship;
-            PRINT_ERROR_F("Ship returned doesn't fit on a %dx%d board", board.size, board.size);
+            error.type = ERROR_SHIP_OVERLAP;
+            error.value.ship = ship;
+            PRINT_ERROR("Ship returned overlaps with another ship already on the board");
             fprintf(stderr, "\trow: %d\n\tcolumn: %d\n\tlength: %d\n\tdirection: %s\n",
                 ship.row, ship.column, ship.length,
                 ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL");
             return error;
         }
-        uint8_t row_multiplier = ship.direction == BSHIP_VERTICAL;
-        uint8_t column_multiplier = ship.direction == BSHIP_HORIZONTAL;
-        for (uint8_t i = 0; i < ship.length; i++)
+        else
         {
-            uint8_t row = ship.row + (i * row_multiplier);
-            uint8_t column = ship.column + (i * column_multiplier);
-            if (BShip_Board_Get(board, row, column) != BSHIP_WATER)
-            {
-                error.type = ERROR_SHIP_OVERLAP;
-                error.ship = ship;
-                PRINT_ERROR("Ship returned overlaps with another ship already on the board");
-                fprintf(stderr, "\trow: %d\n\tcolumn: %d\n\tlength: %d\n\tdirection: %s\n",
-                    ship.row, ship.column, ship.length,
-                    ship.direction == BSHIP_HORIZONTAL ? "HORIZONTAL" : "VERTICAL");
-                return error;
-            }
-            else
-            {
-                BShip_Board_Set(board, row, column, BSHIP_SHIP);
-            }
+            BShip_Board_Set(board, row, column, BSHIP_SHIP);
         }
-        alive_ships->buffer[alive_ships->length] = i;
-        alive_ships->length++;
     }
 
     return error;
@@ -257,7 +245,7 @@ BShip_Error ValidateAndStoreShot(BShip_Board opponent_board, BShip_Shot *shot)
     if (shot->row >= opponent_board.size || shot->column >= opponent_board.size)
     {
         error.type = ERROR_SHOT_OFF_BOARD;
-        error.shot = *shot;
+        error.value.shot = *shot;
         PRINT_ERROR_F("Shot returned doesn't fit on a %dx%d board", opponent_board.size, opponent_board.size);
         fprintf(stderr, "\trow: %d\n\tcolumn: %d\n", shot->row, shot->column);
         return error;
@@ -292,8 +280,8 @@ BShip_Error ValidateAndStoreShot(BShip_Board opponent_board, BShip_Shot *shot)
     return error;
 }
 
-BShip_Ship *FindDeadShip(BShip_Board board, BShip_ShipArray ships,
-    BShip_U8Array *alive_ships, BShip_U8Array *dead_ships)
+bool FindAndStoreDeadShip(BShip_Board board, BShip_ShipArray ships,
+    BShip_U8Array *alive_ships, BShip_U8Array *dead_ships, uint32_t *dead_ship_index)
 {
     assert(board.buffer != NULL);
     assert(ships.buffer != NULL);
@@ -301,20 +289,21 @@ BShip_Ship *FindDeadShip(BShip_Board board, BShip_ShipArray ships,
     assert(alive_ships->buffer != NULL);
     assert(dead_ships != NULL);
     assert(dead_ships->buffer != NULL);
+    assert(dead_ship_index != NULL);
 
     for (uint8_t i = 0; i < alive_ships->length; i++)
     {
         uint8_t index = alive_ships->buffer[i];
         assert(index < ships.length);
-        BShip_Ship *ship = &ships.buffer[index];
+        BShip_Ship ship = ships.buffer[index];
 
         uint8_t hit_count = 0;
-        uint8_t row_multiplier = ship->direction == BSHIP_VERTICAL;
-        uint8_t column_multiplier = ship->direction == BSHIP_HORIZONTAL;
-        for (uint8_t j = 0; j < ship->length; j++)
+        uint8_t row_multiplier = ship.direction == BSHIP_VERTICAL;
+        uint8_t column_multiplier = ship.direction == BSHIP_HORIZONTAL;
+        for (uint8_t j = 0; j < ship.length; j++)
         {
-            uint8_t row = ship->row + (j * row_multiplier);
-            uint8_t column = ship->column + (j * column_multiplier);
+            uint8_t row = ship.row + (j * row_multiplier);
+            uint8_t column = ship.column + (j * column_multiplier);
             BShip_BoardValue value = BShip_Board_Get(board, row, column);
 
             if (value == BSHIP_SHIP)
@@ -332,21 +321,21 @@ BShip_Ship *FindDeadShip(BShip_Board board, BShip_ShipArray ships,
                 assert(false);
             }
         }
-        if (hit_count == ship->length)
+        if (hit_count == ship.length)
         {
-            for(uint8_t j = 0; j < ship->length; j++)
+            for(uint8_t j = 0; j < ship.length; j++)
             {
-                uint8_t row = ship->row + (j * row_multiplier);
-                uint8_t column = ship->column + (j * column_multiplier);
+                uint8_t row = ship.row + (j * row_multiplier);
+                uint8_t column = ship.column + (j * column_multiplier);
                 BShip_Board_Set(board, row, column, BSHIP_KILL);
             }
             BShip_U8Array_SwapBack(alive_ships, i);
-            dead_ships->buffer[dead_ships->length] = index;
-            dead_ships->length++;
+            BShip_U8Array_Push(dead_ships, index);
 
-            return ship;
+            *dead_ship_index = index;
+            return true;
         }
     }
-    return NULL;
+    return false;
 }
 

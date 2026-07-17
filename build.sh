@@ -8,6 +8,7 @@ MODE="${1:-debug}"
 COMMON_FLAGS=(
     -Wall
     -Wextra
+    -fshort-enums
 )
 
 DEBUG_FLAGS=(
