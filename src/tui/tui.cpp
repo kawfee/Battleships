@@ -364,6 +364,7 @@ typedef enum {
     INPUT_ENTER,
     INPUT_ESC,
     INPUT_NUM,
+    INPUT_PERIOD,
 } TUI_InputType;
 
 typedef struct {
@@ -409,6 +410,9 @@ TUI_Input TUI_Input_Get(bool wait_for_input, int32_t timeout_ms)
         break;
     case 'q':
         input.type = INPUT_ESC;
+        break;
+    case '.':
+        input.type = INPUT_PERIOD;
         break;
     case '\r':
     case '\n':

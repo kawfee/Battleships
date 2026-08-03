@@ -48,8 +48,15 @@ void TUI_TextGroup_Add_Board(vector<TUI_TextGroup> &group, const string &name,
         board_row += "|";
         TUI_TextGroup row_group = TUI_TextGroup_Default(TUI_Text_Default(board_row));
 
-        for (size_t j = 0; j < board.size; j++)
+        // NOTE(mattg): Doing a dynamic string color algo like this prevents the naive approach where
+        // each board cell has a separate fg/bg ESC code, improving terminal rendering performance.
+        string row = "";
+        Color prev_fg = RESET;
+        Color prev_bg = RESET;
+        size_t j = 0;
+        while (j < board.size)
         {
+
             char c = '\0';
             Color fg = RESET;
             Color bg = RESET;
@@ -98,10 +105,23 @@ void TUI_TextGroup_Add_Board(vector<TUI_TextGroup> &group, const string &name,
                 bg = LIGHT_RED;
                 break;
             }
-            string str = "";
-            str += c;
-            TUI_TextGroup_Add(&row_group, TUI_Text_New(str, {}, fg, bg));
+
+            if (fg == prev_fg && bg == prev_bg)
+            {
+                row += c;
+            }
+            else
+            {
+                TUI_TextGroup_Add(&row_group, TUI_Text_New(row, {}, prev_fg, prev_bg));
+                row = "";
+                row += c;
+                prev_fg = fg;
+                prev_bg = bg;
+            }
+
+            j++;
         }
+        TUI_TextGroup_Add(&row_group, TUI_Text_New(row, {}, prev_fg, prev_bg));
         group.push_back(row_group);
     }
 }
@@ -119,26 +139,40 @@ void TUI_Store_Ship(BShip_Board board, BShip_Ship ship, BShip_BoardValue value)
 }
 
 typedef struct {
-    uint32_t game_index;
+    vector<uint32_t> display_game_indexes;
+    uint32_t display_game_index;
     uint32_t event_offset;
+    bool game_stepping_over;
 } TUI_GameStepState;
+
+uint32_t TUI_GameStepState_GameIndex_Get(TUI_GameStepState *state)
+{
+    assert(state != NULL);
+    if (state->display_game_indexes.size() > 0)
+    {
+        assert(state->display_game_index < state->display_game_indexes.size());
+    }
+    return state->display_game_indexes.at(state->display_game_index);
+}
 
 uint32_t TUI_GameStepState_Index_Start(TUI_GameStepState *state, BShip_MatchData match)
 {
     assert(state != NULL);
     assert(match.game_indexes.buffer != NULL);
-    assert(state->game_index < match.game_indexes.length);
-    return match.game_indexes.buffer[state->game_index];
+    uint32_t game_index = TUI_GameStepState_GameIndex_Get(state);
+    assert(game_index < match.game_indexes.length);
+    return match.game_indexes.buffer[game_index];
 }
 
 uint32_t TUI_GameStepState_Index_End(TUI_GameStepState *state, BShip_MatchData match)
 {
     assert(state != NULL);
     assert(match.game_indexes.buffer != NULL);
-    assert(state->game_index < match.game_indexes.length);
-    return state->game_index == match.game_indexes.length-1
+    uint32_t game_index = TUI_GameStepState_GameIndex_Get(state);
+    assert(game_index < match.game_indexes.length);
+    return game_index == match.game_indexes.length-1
         ? match.events.length-1
-        : (match.game_indexes.buffer[state->game_index+1])-1;
+        : (match.game_indexes.buffer[game_index+1])-1;
 }
 
 BShip_Event TUI_GameStepState_Event_Get(TUI_GameStepState *state, BShip_MatchData match)
@@ -156,18 +190,21 @@ BShip_Event TUI_GameStepState_Event_Get(TUI_GameStepState *state, BShip_MatchDat
     return match.events.buffer[event_index];
 }
 
-void TUI_GameStepState_NextGame(TUI_GameStepState *state, BShip_MatchData match)
+void TUI_GameStepState_NextGame(TUI_GameStepState *state)
 {
     assert(state != NULL);
-    assert(match.game_indexes.buffer != NULL);
-    if (state->game_index >= match.game_indexes.length)
+    if (state->display_game_indexes.size() == 0)
     {
-        state->game_index = match.game_indexes.length-1;
+        state->display_game_index = 0;
         return;
     }
-    if (state->game_index < match.game_indexes.length-1)
+    else if (state->display_game_index >= state->display_game_indexes.size())
     {
-        state->game_index++;
+        state->display_game_index = state->display_game_indexes.size()-1;
+    }
+    else if (state->display_game_index < state->display_game_indexes.size()-1)
+    {
+        state->display_game_index++;
     }
 }
 
@@ -175,7 +212,6 @@ void TUI_GameStepState_NextStep(TUI_GameStepState *state, BShip_MatchData match)
 {
     assert(state != NULL);
     assert(match.events.buffer != NULL);
-    assert(match.game_indexes.buffer != NULL);
     uint32_t game_event_index_start = TUI_GameStepState_Index_Start(state, match);
     uint32_t game_event_index_end = TUI_GameStepState_Index_End(state, match);
     uint32_t event_index = game_event_index_start + state->event_offset;
@@ -184,25 +220,30 @@ void TUI_GameStepState_NextStep(TUI_GameStepState *state, BShip_MatchData match)
         state->event_offset++;
         return;
     }
-    if (state->game_index == match.game_indexes.length-1)
+    if (state->display_game_index < state->display_game_indexes.size()-1)
     {
-        return;
+        TUI_GameStepState_NextGame(state);
+        state->event_offset = 0;
     }
-    TUI_GameStepState_NextGame(state, match);
-    state->event_offset = 0;
 }
 
-void TUI_GameStepState_PreviousGame(TUI_GameStepState *state, BShip_MatchData match)
+void TUI_GameStepState_PreviousGame(TUI_GameStepState *state)
 {
     assert(state != NULL);
-    assert(match.game_indexes.buffer != NULL);
-    if (state->game_index >= match.game_indexes.length)
+    if (state->display_game_indexes.size() == 0)
     {
-        state->game_index = match.game_indexes.length-1;
+        state->display_game_index = 0;
+        return;
     }
-    if (state->game_index > 0)
+    else if (state->display_game_index >= state->display_game_indexes.size())
     {
-        state->game_index--;
+        state->display_game_index = state->display_game_indexes.size()-1;
+    }
+    // NOTE(mattg): This is not an else if because we want this to compute every time
+    // we do the upper bounds check.
+    if (state->display_game_index > 0)
+    {
+        state->display_game_index--;
     }
 }
 
@@ -223,14 +264,13 @@ void TUI_GameStepState_PreviousStep(TUI_GameStepState *state, BShip_MatchData ma
         state->event_offset--;
         return;
     }
-    if (state->game_index == 0)
+    if (state->display_game_index > 0)
     {
-        return;
+        TUI_GameStepState_PreviousGame(state);
+        game_event_index_start = TUI_GameStepState_Index_Start(state, match);
+        game_event_index_end = TUI_GameStepState_Index_End(state, match);
+        state->event_offset = game_event_index_end - game_event_index_start;
     }
-    TUI_GameStepState_PreviousGame(state, match);
-    game_event_index_start = TUI_GameStepState_Index_Start(state, match);
-    game_event_index_end = TUI_GameStepState_Index_End(state, match);
-    state->event_offset = game_event_index_end - game_event_index_start;
 }
 
 void TUI_GameStepState_Apply(TUI_GameStepState *state, BShip_MatchData match,
@@ -432,12 +472,18 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
     BShip_Board ai1_board, BShip_Board ai2_board)
 {
     string ai1_name = match.ai1.name, ai2_name = match.ai2.name;
-    size_t board_display_width = match.board_size + 15;
-    size_t name_display_width = ai1_name.size() + 15;
-    size_t board2_column_offset = board_display_width > name_display_width
-        ? board_display_width : name_display_width;
+    // NOTE(mattg): 2 for the number and column line
+    size_t board_display_width = 2 + match.board_size;
+    size_t name_display_width = ai1_name.size() > ai2_name.size() ? ai1_name.size() : ai2_name.size();
+    size_t total_display_width = board_display_width > name_display_width ? board_display_width : name_display_width;
 
-    uint32_t game_num = state->game_index + 1;
+    // size_t board_display_width = match.board_size + 15;
+    // size_t name_display_width = ai1_name.size() + 15;
+    // size_t board2_column_offset = board_display_width > name_display_width
+    //     ? board_display_width : name_display_width;
+
+    uint32_t game_index = TUI_GameStepState_GameIndex_Get(state);
+    uint32_t game_num = game_index + 1;
     string game_num_str = "Game #" + to_string(game_num);
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(game_num_str))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
@@ -454,17 +500,37 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
 
     assert(ai1_group.size() == ai2_group.size());
 
-    for (size_t i = 0; i < ai1_group.size(); i++)
+    if (window->size.width > (total_display_width * 2)+1)
     {
-        TUI_Line line = TUI_Line_Default(ai1_group.at(i));
-        ai2_group.at(i).column += board2_column_offset;
-        TUI_Line_Add(&line, ai2_group.at(i));
-        TUI_Window_Add(window, line);
+        // NOTE(mattg): left-right board display
+        size_t leftover_width = window->size.width - (board_display_width * 2) - 1;
+        leftover_width = leftover_width < 15 ? leftover_width : 15;
+        size_t board2_column_offset = board_display_width + leftover_width;
+        for (size_t i = 0; i < ai1_group.size(); i++)
+        {
+            TUI_Line line = TUI_Line_Default(ai1_group.at(i));
+            ai2_group.at(i).column += board2_column_offset;
+            TUI_Line_Add(&line, ai2_group.at(i));
+            TUI_Window_Add(window, line);
+        }
+    }
+    else
+    {
+        // NOTE(mattg): top-bottom board display
+        for (size_t i = 0; i < ai1_group.size(); i++)
+        {
+            TUI_Window_Add(window, TUI_Line_Default(ai1_group.at(i)));
+        }
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+        for (size_t i = 0; i < ai2_group.size(); i++)
+        {
+            TUI_Window_Add(window, TUI_Line_Default(ai2_group.at(i)));
+        }
     }
 }
 
 bool TUI_GameStepState_Input(TUI_GameStepState *state, TUI_Input input,
-    BShip_MatchData match, bool automatic_stepping)
+    BShip_MatchData match, bool manual_stepping)
 {
     uint32_t game_event_index_start = 0;
     uint32_t game_event_index_end = 0;
@@ -474,25 +540,29 @@ bool TUI_GameStepState_Input(TUI_GameStepState *state, TUI_Input input,
         return true;
         break;
     case INPUT_ENTER:
-        // jump to the end of the events
-        state->game_index = match.game_indexes.length-1;
-        game_event_index_start = TUI_GameStepState_Index_Start(state, match);
-        game_event_index_end = TUI_GameStepState_Index_End(state, match);
-        state->event_offset = game_event_index_end - game_event_index_start;
+        if (state->display_game_indexes.size() > 0)
+        {
+            // jump to the end of the events
+            state->display_game_index = state->display_game_indexes.size()-1;
+            game_event_index_start = TUI_GameStepState_Index_Start(state, match);
+            game_event_index_end = TUI_GameStepState_Index_End(state, match);
+            state->event_offset = game_event_index_end - game_event_index_start;
+            state->game_stepping_over = true;
+        }
         return false;
         break;
     default:
         break;
     }
-    if (!automatic_stepping)
+    if (manual_stepping && !state->game_stepping_over)
     {
         switch (input.type)
         {
         case INPUT_UP:
-            TUI_GameStepState_PreviousGame(state, match);
+            TUI_GameStepState_PreviousGame(state);
             break;
         case INPUT_DOWN:
-            TUI_GameStepState_NextGame(state, match);
+            TUI_GameStepState_NextGame(state);
             break;
         case INPUT_LEFT:
             TUI_GameStepState_PreviousStep(state, match);
@@ -560,7 +630,7 @@ TUI_TextGroup TUI_Player_VS_Get(BShip_AIMatchData match, BShip_PlayerNum player)
     return player_vs;
 }
 
-uint64_t TUI_Now_Ms(void)
+uint64_t TUI_Now_MS(void)
 {
     struct timespec ts {};
     clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -568,7 +638,8 @@ uint64_t TUI_Now_Ms(void)
     return (uint64_t)ts.tv_sec * 1000 + (uint64_t)ts.tv_nsec / 1000000;
 }
 
-void TUI_Match_Display(BShip_MatchData match, bool automatic_stepping, uint64_t step_delay_ms, bool debug)
+void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
+    uint64_t step_delay_ms, bool manual_stepping, bool debug)
 {
     TUI_Window window = {};
     TUI_WindowSize_Get(&window.size);
@@ -583,13 +654,31 @@ void TUI_Match_Display(BShip_MatchData match, bool automatic_stepping, uint64_t 
     TUI_TextGroup ai2_vs_group = TUI_Player_VS_Get(match.ai2, BSHIP_PLAYER_2);
 
     TUI_GameStepState state = {};
+    if (type == TUI_MATCH_DISPLAY_NONE)
+    {
+        state.game_stepping_over = true;
+    }
+    switch (type)
+    {
+    case TUI_MATCH_DISPLAY_NONE:
+        break;
+    case TUI_MATCH_DISPLAY_LAST:
+        if (match.game_indexes.length > 0) state.display_game_indexes.push_back(match.game_indexes.length-1);
+        break;
+    case TUI_MATCH_DISPLAY_ALL:
+        for (size_t i = 0; i < match.game_indexes.length; i++)
+        {
+            state.display_game_indexes.push_back(i);
+        }
+        break;
+    }
 
     TUI_Input input = {};
 
-    uint64_t next_step_ms = TUI_Now_Ms() + step_delay_ms;
+    uint64_t next_step_ms = TUI_Now_MS() + step_delay_ms;
 
     // Automatic stepping means wait for input
-    if (!TUI_Window_Enter(&window, !automatic_stepping))
+    if (!TUI_Window_Enter(&window, manual_stepping))
     {
         goto on_exit;
     }
@@ -607,47 +696,54 @@ void TUI_Match_Display(BShip_MatchData match, bool automatic_stepping, uint64_t 
             TUI_Debug_Line_Add(&window, input);
         }
 
-        TUI_GameStepState_Apply(&state, match, ai1_board, ai2_board);
-
         TUI_VS_Display(&window, ai1_vs_group, ai2_vs_group);
 
-        TUI_GameStepState_Display(&window, &state, match, ai1_board, ai2_board);
-
-        TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
-        if (!automatic_stepping)
+        if (type != TUI_MATCH_DISPLAY_NONE)
         {
-            TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
-                TUI_Text_Default("← → h/l  Prev/Next event")
-            )));
-            TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
-                TUI_Text_Default("↑ ↓ j/k  Prev/Next game")
-            )));
+            TUI_GameStepState_Apply(&state, match, ai1_board, ai2_board);
+
+            TUI_GameStepState_Display(&window, &state, match, ai1_board, ai2_board);
+
+            TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+            if (!state.game_stepping_over)
+            {
+                if (manual_stepping)
+                {
+                    TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
+                        TUI_Text_Default("← → h/l  Prev/Next event")
+                    )));
+                    TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
+                        TUI_Text_Default("↑ ↓ j/k  Prev/Next game")
+                    )));
+                }
+                TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
+                    TUI_Text_Default("Enter    Jump to Stats")
+                )));
+                TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
+                    TUI_Text_Default("Esc/q    Quit")
+                )));
+            }
         }
-        TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
-            TUI_Text_Default("Enter    Jump to the end")
-        )));
-        TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
-        
 
         TUI_Window_Print(&window);
 
-        uint64_t now_ms = TUI_Now_Ms();
+        uint64_t now_ms = TUI_Now_MS();
         int timeout_ms = -1;
-        if (automatic_stepping)
+        if (!manual_stepping)
         {
             timeout_ms = (int)(next_step_ms - now_ms);
         }
 
-        input = TUI_Input_Get(!automatic_stepping, timeout_ms);
+        input = TUI_Input_Get(manual_stepping, timeout_ms);
         TUI_Input_ScrollState_Get(&window, input);
-        if (TUI_GameStepState_Input(&state, input, match, automatic_stepping))
+        if (TUI_GameStepState_Input(&state, input, match, manual_stepping))
         {
             break;
         }
 
-        if (automatic_stepping)
+        if (!manual_stepping)
         {
-            now_ms = TUI_Now_Ms();
+            now_ms = TUI_Now_MS();
             uint64_t total_delay_ms = step_delay_ms;
 
             if (now_ms >= next_step_ms || input.type == INPUT_ENTER)

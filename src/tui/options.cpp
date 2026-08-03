@@ -5,6 +5,8 @@
  * @date 2026-06-18
  */
 
+#include <cmath>
+#include <math.h>
 #include <optional>
 
 #include "shared.cpp"
@@ -20,10 +22,13 @@ typedef enum {
 
 typedef struct {
     TUI_RuntimeType runtime;
+    uint8_t board_size;
+    uint32_t games_per_match;
     BShip_AIFileData ai1;
     BShip_AIFileData ai2;
-    uint32_t games_per_match;
-    uint8_t board_size;
+    TUI_MatchDisplayType match_display_type;
+    uint64_t step_delay_ms;
+    bool manual_stepping;
 } TUI_Options;
 
 typedef struct {
@@ -32,6 +37,9 @@ typedef struct {
     optional<uint32_t> games_per_match;
     optional<BShip_AIFileData> ai1;
     optional<BShip_AIFileData> ai2;
+    optional<TUI_MatchDisplayType> match_display_type;
+    optional<uint64_t> step_delay_ms;
+    optional<bool> manual_stepping;
     size_t runtime_selection;
     size_t board_size_selection;
     size_t games_per_match_selection;
@@ -42,6 +50,11 @@ typedef struct {
     size_t ai1_selection;
     size_t ai2_selection;
     size_t ai_window_top;
+    size_t match_display_type_selection;
+    size_t step_delay_ms_selection;
+    string step_delay_ms_string;
+    bool step_delay_ms_invalid;
+    bool manual_stepping_selection;
 } TUI_OptionsState;
 
 const TUI_RuntimeType RuntimeTypeTable[] = {
@@ -59,9 +72,9 @@ const char* RuntimeStringTable[] = {
 
 void TUI_RuntimeType_Display(TUI_Window *window, TUI_OptionsState *state)
 {
-    if (state->runtime_selection >= TUI_ARRAY_LENGTH(RuntimeStringTable))
+    if (state->runtime_selection >= TUI_ARRAY_LENGTH(RuntimeTypeTable))
     {
-        state->runtime_selection = TUI_ARRAY_LENGTH(RuntimeStringTable)-1;
+        state->runtime_selection = TUI_ARRAY_LENGTH(RuntimeTypeTable)-1;
     }
 
     TUI_Text prompt = TUI_Text_Default("Runtime: ");
@@ -76,12 +89,11 @@ void TUI_RuntimeType_Display(TUI_Window *window, TUI_OptionsState *state)
     }
     TUI_Window_Add(window, TUI_Line_Default(prompt_group));
 
-    for (size_t i = 0; i < TUI_ARRAY_LENGTH(RuntimeStringTable); i++)
+    for (size_t i = 0; i < TUI_ARRAY_LENGTH(RuntimeTypeTable); i++)
     {
         string runtime_string = state->runtime_selection == i ? " > " : "    ";
         runtime_string += RuntimeStringTable[i];
-        TUI_Text runtime = TUI_Text_Default(runtime_string);
-        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(runtime)));
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(runtime_string))));
     }
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓ j/k  Move"))));
@@ -411,6 +423,256 @@ bool TUI_MatchPlayer_Input(TUI_OptionsState *state, TUI_Options *options, TUI_In
     return false;
 }
 
+const TUI_MatchDisplayType MatchDisplayTypeTable[] = {
+    TUI_MATCH_DISPLAY_LAST,
+    TUI_MATCH_DISPLAY_ALL,
+    TUI_MATCH_DISPLAY_NONE,
+};
+const char* MatchDisplayStringTable[] = {
+    "Last Game",
+    "All Games",
+    "Stats Only",
+};
+
+void TUI_MatchDisplayType_Display(TUI_Window *window, TUI_OptionsState *state)
+{
+    if (state->match_display_type_selection >= TUI_ARRAY_LENGTH(MatchDisplayTypeTable))
+    {
+        state->match_display_type_selection = TUI_ARRAY_LENGTH(MatchDisplayTypeTable)-1;
+    }
+
+    TUI_Text prompt = TUI_Text_Default("Display: ");
+    TUI_TextGroup prompt_group = TUI_TextGroup_Default(prompt);
+    if (state->match_display_type.has_value())
+    {
+        TUI_TextGroup_Add(&prompt_group,
+            TUI_Text_New(MatchDisplayStringTable[state->match_display_type_selection], { BOLD }, RESET, RESET)
+        );
+        TUI_Window_Add(window, TUI_Line_Default(prompt_group));
+        return;
+    }
+    TUI_Window_Add(window, TUI_Line_Default(prompt_group));
+
+    for (size_t i = 0; i < TUI_ARRAY_LENGTH(MatchDisplayTypeTable); i++)
+    {
+        string match_display_string = state->match_display_type_selection == i ? " > " : "    ";
+        match_display_string += MatchDisplayStringTable[i];
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(match_display_string))));
+    }
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓ j/k  Move"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
+}
+
+bool TUI_MatchDisplayType_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+{
+    switch (input.type)
+    {
+    case INPUT_UP:
+        if (state->match_display_type_selection > 0) state->match_display_type_selection--;
+        break;
+    case INPUT_DOWN:
+        if (state->match_display_type_selection < TUI_ARRAY_LENGTH(MatchDisplayTypeTable)-1)
+            state->match_display_type_selection++;
+        break;
+    case INPUT_ENTER:
+        state->match_display_type = MatchDisplayTypeTable[state->match_display_type_selection];
+        options->match_display_type = MatchDisplayTypeTable[state->match_display_type_selection];
+        if (options->match_display_type == TUI_MATCH_DISPLAY_NONE)
+        {
+            // NOTE(mattg): When there's nothing to step through, it's better to not constantly
+            // animate a display that doesn't need to change.
+            options->manual_stepping = true;
+        }
+        break;
+    case INPUT_ESC:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
+void TUI_ManualStepping_Display(TUI_Window *window, TUI_OptionsState *state)
+{
+    const string AUTOMATIC = "Automatic";
+    const string MANUAL = "Manual";
+    TUI_Text prompt = TUI_Text_Default("Step Mode: ");
+    TUI_TextGroup group = TUI_TextGroup_Default(prompt);
+    if (state->manual_stepping.has_value())
+    {
+        string ms = state->manual_stepping.value() ? MANUAL : AUTOMATIC;
+        TUI_TextGroup_Add(&group, TUI_Text_New(ms, { BOLD }, RESET, RESET));
+        TUI_Window_Add(window, TUI_Line_Default(group));
+        return;
+    }
+    bool is_automatic = !state->manual_stepping_selection;
+    bool is_manual = state->manual_stepping_selection;
+    string automatic = (is_automatic ? "< " : "  ") + AUTOMATIC + (is_automatic ? " >" : "  ");
+    vector<TextStyle> automatic_styles = {};
+    if (is_automatic) automatic_styles.push_back(BOLD);
+    TUI_TextGroup_Add(&group, TUI_Text_New(automatic, automatic_styles, RESET, RESET)); 
+
+    string manual = (is_manual ? "< " : "  ") + MANUAL + (is_manual ? " >" : "");
+    vector<TextStyle> manual_styles = {};
+    if (is_manual) manual_styles.push_back(BOLD);
+    TUI_TextGroup_Add(&group, TUI_Text_New(manual, manual_styles, RESET, RESET)); 
+    TUI_Window_Add(window, TUI_Line_Default(group));
+
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("← → h/l  Change"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
+}
+
+bool TUI_ManualStepping_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+{
+    switch (input.type)
+    {
+    case INPUT_LEFT:
+        state->manual_stepping_selection = false;
+        break;
+    case INPUT_RIGHT:
+        state->manual_stepping_selection = true;
+        break;
+    case INPUT_ENTER:
+        state->manual_stepping = state->manual_stepping_selection;
+        options->manual_stepping = state->manual_stepping_selection;
+        break;
+    case INPUT_ESC:
+        return true;
+        break;
+    default:
+        break;
+    }
+    return false;
+}
+
+const size_t STEP_DELAY_MS_MIN = 100;
+const size_t STEP_DELAY_MS_MAX = 10000;
+const string STEP_DELAY_MS_MIN_STRING = "0.1";
+const string STEP_DELAY_MS_MAX_STRING = "10";
+
+string StepDelayS_String_From_StepDelayMS(uint64_t step_delay_ms)
+{
+    float truncated_step_delay_s = truncf((float)step_delay_ms / 100.0f) / 10.0f;
+    return to_string(truncated_step_delay_s);
+}
+
+uint64_t StepDelayMS_From_StepDelayS_Float(float step_delay_s)
+{
+    float truncated_step_delay_s = truncf(step_delay_s * 10.0f) / 10.0f;
+    return static_cast<uint64_t>(std::round(truncated_step_delay_s * 1000.0f));
+}
+
+void TUI_StepDelayMS_Display(TUI_Window *window, TUI_OptionsState *state)
+{
+    if (state->step_delay_ms_selection < STEP_DELAY_MS_MIN)
+    {
+        state->step_delay_ms_selection = STEP_DELAY_MS_MIN;
+    }
+    else if (state->step_delay_ms_selection > STEP_DELAY_MS_MAX)
+    {
+        state->step_delay_ms_selection = STEP_DELAY_MS_MAX;
+    }
+    TUI_Text prompt = TUI_Text_Default("Automatic Delay (sec): ");
+    TUI_TextGroup group = TUI_TextGroup_Default(prompt);
+    if (state->step_delay_ms.has_value())
+    {
+        string sdms = StepDelayS_String_From_StepDelayMS(state->step_delay_ms.value());
+        TUI_TextGroup_Add(&group, TUI_Text_New(sdms, { BOLD }, RESET, RESET));
+        TUI_Window_Add(window, TUI_Line_Default(group));
+        return;
+    }
+    TUI_TextGroup_Add(&group, TUI_Text_Default(state->step_delay_ms_string));
+    TUI_TextGroup_Add(&group, TUI_Text_New(" ", { NEGATIVE_IMAGE }, RESET, RESET));
+    TUI_Window_Add(window, TUI_Line_Default(group));
+
+    bool invalid_number = false;
+    bool invalid_range = false;
+    try
+    {
+        size_t pos = 0;
+        float selection_float = stof(state->step_delay_ms_string, &pos);
+        uint64_t selection = StepDelayMS_From_StepDelayS_Float(selection_float);
+
+        if (pos != state->step_delay_ms_string.size())
+        {
+            invalid_number = true;
+        }
+        if (selection < STEP_DELAY_MS_MIN || selection > STEP_DELAY_MS_MAX)
+        {
+            invalid_range = true;
+        }
+        if (!invalid_number && !invalid_range)
+        {
+            state->step_delay_ms_selection = selection;
+        }
+    }
+    catch (const std::invalid_argument&)
+    {
+        invalid_number = true;
+    }
+    catch (const std::out_of_range&)
+    {
+        invalid_range = true;
+    }
+    state->step_delay_ms_invalid = (invalid_number || invalid_range);
+
+    if (invalid_number)
+    {
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(
+            TUI_Text_New("Invalid Number!", {}, RED, RESET)
+        )));
+    }
+    else if (invalid_range)
+    {
+        string range = "Out of Range: ";
+        range += STEP_DELAY_MS_MIN_STRING + "-" + STEP_DELAY_MS_MAX_STRING;
+        TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(
+            TUI_Text_New(range, {}, RED, RESET)
+        )));
+    }
+
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("0-9 .    Edit"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Bksp     Delete"))));
+    TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"));
+    if (state->step_delay_ms_invalid)
+    {
+        TUI_TextGroup_Add(&enter_group, TUI_Text_New(" (disabled)", { BOLD }, RESET, RESET));
+    }
+    TUI_Window_Add(window, TUI_Line_Default(enter_group));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
+}
+
+bool TUI_StepDelayMS_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+{
+    switch (input.type)
+    {
+    case INPUT_NUM:
+    case INPUT_PERIOD:
+        if (state->step_delay_ms_string.size() < 10) state->step_delay_ms_string.push_back(input.value);
+        break;
+    case INPUT_BACKSPACE:
+        if (state->step_delay_ms_string.size() > 0) state->step_delay_ms_string.pop_back();
+        break;
+    case INPUT_ENTER:
+        if (!state->step_delay_ms_invalid)
+        {
+            state->step_delay_ms = state->step_delay_ms_selection;
+            options->step_delay_ms = state->step_delay_ms_selection;
+        }
+        break;
+    case INPUT_ESC:
+        return true;
+    default:
+        break;
+    }
+    return false;
+}
+
 bool TUI_Options_Display(TUI_Window *window, TUI_OptionsState *state, const vector<BShip_AIFileData> &ais)
 {
     TUI_RuntimeType_Display(window, state);
@@ -433,6 +695,24 @@ bool TUI_Options_Display(TUI_Window *window, TUI_OptionsState *state, const vect
 
         TUI_MatchPlayer_Display(window, state, ais, BSHIP_PLAYER_2);
         if (!state->ai2.has_value()) return false;
+    }
+    
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_REPLAY_MATCH)
+    {
+        TUI_MatchDisplayType_Display(window, state);
+        if (!state->match_display_type.has_value()) return false;
+
+        if (state->match_display_type.has_value() && state->match_display_type.value() != TUI_MATCH_DISPLAY_NONE)
+        {
+            TUI_ManualStepping_Display(window, state);
+            if (!state->manual_stepping.has_value()) return false;
+
+            if (state->manual_stepping.has_value() && !state->manual_stepping.value())
+            {
+                TUI_StepDelayMS_Display(window, state);
+                if (!state->step_delay_ms.has_value()) return false;
+            }
+        }
     }
     return true;
 }
@@ -470,6 +750,30 @@ bool TUI_Options_Input(TUI_Input input, TUI_OptionsState *state, TUI_Options *op
             return TUI_MatchPlayer_Input(state, options, input, ais, BSHIP_PLAYER_2);
         }
     }
+
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_REPLAY_MATCH)
+    {
+        if (!state->match_display_type.has_value())
+        {
+            return TUI_MatchDisplayType_Input(state, options, input);
+        }
+
+        if (state->match_display_type.has_value() && state->match_display_type.value() != TUI_MATCH_DISPLAY_NONE)
+        {
+            if (!state->manual_stepping.has_value())
+            {
+                return TUI_ManualStepping_Input(state, options, input);
+            }
+
+            if (state->manual_stepping.has_value() && !state->manual_stepping.value())
+            {
+                if (!state->step_delay_ms.has_value())
+                {
+                    return TUI_StepDelayMS_Input(state, options, input);
+                }
+            }
+        }
+    }
     return false;
 }
 
@@ -501,6 +805,9 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
         .games_per_match = {},
         .ai1 = {},
         .ai2 = {},
+        .match_display_type = {},
+        .step_delay_ms = {},
+        .manual_stepping = {},
         // defaults
         .runtime_selection = 0,
         .board_size_selection = 10,
@@ -512,6 +819,11 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
         .ai1_selection = 0,
         .ai2_selection = 0,
         .ai_window_top = 0,
+        .match_display_type_selection = 0,
+        .step_delay_ms_selection = 500,
+        .step_delay_ms_string = "0.5",
+        .step_delay_ms_invalid = false,
+        .manual_stepping_selection = false,
     };
 
     TUI_Input input = {};
@@ -553,7 +865,7 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
             TUI_Window_Add(&window, line);
         }
 
-        // NOTE(mattg): TUI_Options_Display returns true if all necessary state has been input.
+        // NOTE(mattg): TUI_Options_Display returns true if all necessary input has been received.
         if (TUI_Options_Display(&window, &state, ais))
         {
             break;

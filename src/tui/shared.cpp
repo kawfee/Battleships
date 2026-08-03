@@ -13,6 +13,16 @@
 using namespace std;
 using namespace conio;
 
+typedef enum {
+    TUI_MATCH_DISPLAY_NONE,
+    TUI_MATCH_DISPLAY_LAST,
+    TUI_MATCH_DISPLAY_ALL,
+    // TODO(mattg): Support other match display types in the future.
+    // TUI_MATCH_DISPLAY_EACH_RESULT,
+    // TUI_MATCH_DISPLAY_EVERY_NTH,
+    // TUI_MATCH_DISPLAY_CHOOSE,
+} TUI_MatchDisplayType;
+
 void TUI_Debug_Line_Add(TUI_Window *window, TUI_Input input)
 {
     string width_height = to_string(window->size.width) + "x" + to_string(window->size.height);
@@ -36,7 +46,7 @@ void TUI_Debug_Line_Add(TUI_Window *window, TUI_Input input)
         input_type = "^ UP";
         break;
     case INPUT_DOWN:
-        input_type = "V DOWN";
+        input_type = "v DOWN";
         break;
     case INPUT_LEFT:
         input_type = "< LEFT";
@@ -48,7 +58,7 @@ void TUI_Debug_Line_Add(TUI_Window *window, TUI_Input input)
         input_type = "^ SCROLL UP";
         break;
     case INPUT_SCROLL_DOWN:
-        input_type = "V SCROLL DOWN";
+        input_type = "v SCROLL DOWN";
         break;
     case INPUT_BACKSPACE:
         input_type = "BACKSPACE";
@@ -58,6 +68,9 @@ void TUI_Debug_Line_Add(TUI_Window *window, TUI_Input input)
         break;
     case INPUT_ESC:
         input_type = "ESC";
+        break;
+    case INPUT_PERIOD:
+        input_type = "PERIOD";
         break;
     case INPUT_NUM:
         input_type = "NUM ";
