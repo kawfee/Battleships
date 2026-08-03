@@ -32,11 +32,15 @@ typedef enum {
     MESSAGE_MATCH_OVER,
 } BShip_MessageType;
 
-BShip_ErrorType BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, char *author_names)
+BShip_Error BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, char *author_names)
 {
     assert(message.buffer != NULL);
     assert(ai_name != NULL);
     assert(author_names != NULL);
+
+    BShip_Error error = {
+        .type = ERROR_SUCCESS,
+    };
 
     yyjson_doc *doc = yyjson_read(message.buffer, strlen(message.buffer), 0);
     if (doc == NULL) goto on_error;
@@ -72,11 +76,13 @@ BShip_ErrorType BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, 
     }
 
     yyjson_doc_free(doc);
-    return ERROR_SUCCESS;
+    return error;
 on_error:
     PRINT_ERROR_F("Invalid \"Hello\" message received: <%s>", message.buffer);
     yyjson_doc_free(doc);
-    return ERROR_MESSAGE_HELLO_INVALID;
+    error.type = ERROR_MESSAGE_HELLO_INVALID;
+    error.value.message = message;
+    return error;
 }
 
 void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size, BShip_PlayerNum player_num)
@@ -140,7 +146,7 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
     yyjson_mut_doc_free(doc);
 }
 
-BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_ShipArray *ships, uint8_t ship_count)
+BShip_Error BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_ShipArray *ships, uint8_t ship_count)
 {
     assert(message.buffer != NULL);
     assert(ships != NULL);
@@ -148,6 +154,10 @@ BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_Shi
     assert(ships->capacity >= ship_count);
     assert(ship_count >= BSHIP_SHIP_COUNT_MIN);
     assert(ship_count <= BSHIP_SHIP_COUNT_MAX);
+
+    BShip_Error error = {
+        .type = ERROR_SUCCESS,
+    };
 
     yyjson_doc *doc = yyjson_read(message.buffer, strlen(message.buffer), 0);
     if (doc == NULL) goto on_error;
@@ -193,17 +203,23 @@ BShip_ErrorType BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_Shi
     }
 
     yyjson_doc_free(doc);
-    return ERROR_SUCCESS;
+    return error;
 on_error:
     PRINT_ERROR_F("Invalid \"Ships Placed\" message received: <%s>", message.buffer);
     yyjson_doc_free(doc);
-    return ERROR_MESSAGE_SHIPS_PLACED_INVALID;
+    error.type = ERROR_MESSAGE_SHIPS_PLACED_INVALID;
+    error.value.message = message;
+    return error;
 }
 
-BShip_ErrorType BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot *shot)
+BShip_Error BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot *shot)
 {
     assert(message.buffer != NULL);
     assert(shot != NULL);
+
+    BShip_Error error = {
+        .type = ERROR_SUCCESS,
+    };
 
     yyjson_doc *doc = yyjson_read(message.buffer, strlen(message.buffer), 0);
     if (doc == NULL) goto on_error;
@@ -233,11 +249,13 @@ BShip_ErrorType BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot 
     }
 
     yyjson_doc_free(doc);
-    return ERROR_SUCCESS;
+    return error;
 on_error:
     PRINT_ERROR_F("Invalid \"Shot Taken\" message received: <%s>", message.buffer);
     yyjson_doc_free(doc);
-    return ERROR_MESSAGE_SHOT_TAKEN_INVALID;
+    error.type = ERROR_MESSAGE_SHOT_TAKEN_INVALID;
+    error.value.message = message;
+    return error;
 }
 
 void BShip_Message_ShotResult_Create(BShip_Message *message, BShip_Shot shot1, BShip_Shot shot2,

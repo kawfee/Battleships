@@ -16,8 +16,6 @@
 #define BSHIP_ARENA_BLOCK_SIZE_DEFAULT 4096
 #define BSHIP_BOARD_SIZE_MIN 5
 #define BSHIP_BOARD_SIZE_MAX 15
-#define BSHIP_GAMES_PER_MATCH_MAX 10000
-#define BSHIP_GAMES_PER_MATCH_MIN 1
 #define BSHIP_MESSAGE_SIZE 256
 #define BSHIP_MESSAGE_NAME_SIZE_MAX 96
 #define BSHIP_SHIP_COUNT_MIN 3
@@ -37,6 +35,16 @@
         fprintf(stderr, "[%s:%d] ERROR: " fmt "\n", __FILE__, __LINE__, __VA_ARGS__); \
         fflush(stderr); \
     } while (0)
+
+#define BSHIP_DEFINE_ARRAY_PUSH(array_type, element_type) \
+static inline void array_type##_Push(array_type *array, element_type element) \
+{ \
+    assert(array != NULL); \
+    assert(array->buffer != NULL); \
+    assert(array->length < array->capacity); \
+    array->buffer[array->length] = element; \
+    array->length++; \
+}
 
 typedef enum {
     BSHIP_PLAYER_1 = 1,
@@ -127,6 +135,12 @@ typedef struct {
     uint32_t capacity;
 } BShip_U8Array;
 
+typedef struct {
+    uint32_t *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_U32Array;
+
 typedef enum {
     ERROR_SUCCESS,
     // Platform-specific errors
@@ -152,64 +166,66 @@ typedef enum {
 } BShip_ErrorType;
 
 typedef struct {
-    BShip_ErrorType type;
-    BShip_Ship ship;
-    BShip_Shot shot;
-    BShip_Message message;
+    union {
+        BShip_Ship ship;
+        BShip_Shot shot;
+        BShip_Message message;
+    } value;
     int32_t exit_status;
+    BShip_ErrorType type;
 } BShip_Error;
+
+typedef enum {
+    BSHIP_EVENT_NONE,
+    BSHIP_EVENT_GAME_START,
+    BSHIP_EVENT_SHIP_PLACEMENT,
+    BSHIP_EVENT_SHOT_RESULT,
+    BSHIP_EVENT_GAME_RESULT,
+} BShip_EventType;
+
+typedef struct {
+    union {
+        BShip_GameResult ai1_game_result; // NOTE(mattg): Player 2's state can be derived from Player 1's.
+        struct {
+            uint32_t ai1_ship_index;
+            uint32_t ai2_ship_index;
+            uint32_t ai1_shot_index;
+            uint32_t ai2_shot_index;
+        } indexes;
+    } value;
+    BShip_EventType type;
+} BShip_Event;
+
+typedef struct {
+    BShip_Event *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_EventArray;
 
 typedef struct {
     BShip_Error error;
     BShip_ShipArray ships;
-    BShip_U8Array alive_ships;
-    BShip_U8Array dead_ships;
     BShip_ShotArray shots;
-    uint32_t num_board_shot;
-    uint32_t hits;
-    uint32_t misses;
-    uint32_t duplicates;
-    uint32_t ships_killed;
-    uint32_t ship_start_idx;
-    uint32_t shot_start_idx;
-    BShip_GameResult result;
-} BShip_AIGameData;
-
-typedef struct {
-    BShip_AIGameData ai1;
-    BShip_AIGameData ai2;
-} BShip_GameData;
-
-typedef struct {
-    BShip_GameData *buffer;
-    uint32_t length;
-    uint32_t capacity;
-} BShip_GameDataArray;
-
-typedef struct {
-    BShip_Error error;
     char *name;
     char *authors;
     uint32_t ai_name_length;
     uint32_t author_name_length;
-    uint32_t wins;
-    uint32_t losses;
-    uint32_t ties;
-    uint32_t total_num_board_shot;
-    uint32_t total_hits;
-    uint32_t total_misses;
-    uint32_t total_duplicates;
-    uint32_t total_ships_killed;
 } BShip_AIMatchData;
 
 typedef struct {
     BShip_AIMatchData ai1;
     BShip_AIMatchData ai2;
-    BShip_GameDataArray games;
-    float elapsed_time;
+    BShip_U32Array game_indexes;
+    BShip_EventArray events;
     uint32_t games_per_match;
     uint8_t board_size;
 } BShip_MatchData;
+
+typedef struct {
+    char *file_name;
+    char *file_path;
+    char *runtime_directory;
+} BShip_AIFileData;
 
 typedef enum {
     CONTEST_CLASSIC,
@@ -235,12 +251,17 @@ void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_Board
 // void BShip_Contest_Run(char *socket_path, char *ai_paths[], uint32_t ai_paths_length,
 //     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug);
 
+uint32_t BShip_GamesPerMatchMin_From_BoardSize(uint8_t board_size);
+
+uint32_t BShip_GamesPerMatchDefault_From_BoardSize(uint8_t board_size);
+
+uint32_t BShip_GamesPerMatchMax_From_BoardSize(uint8_t board_size);
+
 size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_match);
 
 BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
-    char *ai1_path, char *ai1_dir, char *ai2_path, char *ai2_dir,
+    BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
     uint8_t board_size, uint32_t games_per_match, bool debug);
-
 #ifdef __cplusplus
 }
 #endif

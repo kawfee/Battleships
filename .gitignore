@@ -2,6 +2,9 @@
 .vscode/
 .obsidian/
 
+# random extensions
+*.rdi
+
 # project directories
 !ai_files/protected/
 !ai_files/*.{cpp,h}
@@ -19,5 +22,3 @@ battleships
 
 # project files
 options.json
-
-log.txt

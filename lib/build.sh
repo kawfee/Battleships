@@ -13,6 +13,7 @@ COMMON_FLAGS=(
     -Wall
     -Wextra
     -pedantic
+    -fshort-enums
 )
 
 DEBUG_FLAGS=(
@@ -26,7 +27,6 @@ RELEASE_FLAGS=(
     -Werror
     -O3
     -march=native
-    -flto
 )
 
 case "$MODE" in
