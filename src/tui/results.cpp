@@ -56,7 +56,6 @@ void TUI_TextGroup_Add_Board(vector<TUI_TextGroup> &group, const string &name,
         size_t j = 0;
         while (j < board.size)
         {
-
             char c = '\0';
             Color fg = RESET;
             Color bg = RESET;
