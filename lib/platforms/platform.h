@@ -15,9 +15,17 @@ void *BShip_Allocate(size_t size);
 
 void BShip_Deallocate(void *ptr);
 
+bool BShip_PathIsFile(char *path);
+
 bool BShip_PathIsExecutable(char *path);
 
 bool BShip_PathIsDirectory(char *path);
+
+ssize_t BShip_File_GetSize(char *path);
+
+bool BShip_File_Read(char *path, BShip_Buffer *buffer, size_t size);
+
+bool BShip_File_Write(char *path, BShip_Buffer *buffer);
 
 typedef struct BShip_Connection BShip_Connection;
 

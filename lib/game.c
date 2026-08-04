@@ -117,6 +117,7 @@ void ShipLengths_Calculate(BShip_U8Array *array, uint8_t board_size)
         {
             // TODO: randomly decide the ship length.
         }
+        assert(ship_length > 0);
         array->buffer[array->length] = ship_length;
     }
 }

@@ -5,6 +5,9 @@
  * @date 2026-05-27
  */
 
+#ifndef ARENA_C
+#define ARENA_C
+
 #include "platforms/platform.h"
 
 
@@ -150,3 +153,4 @@ void BShip_Arena_Rollback(BShip_Arena *arena, BShip_ArenaMark mark)
     arena->current = block;
 }
 
+#endif // ARENA_C

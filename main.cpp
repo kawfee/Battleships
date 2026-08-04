@@ -181,6 +181,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
 
 int main(void)
 {
+    char *log_file_path = (char *)"./logs/new_match_log.json";
     bool debug = true;
     BShip_Arena string_arena = {};
     BShip_Arena_Initialize(&string_arena, 0); // 0 creates default size.
@@ -201,6 +202,21 @@ int main(void)
 
         BShip_MatchData match = BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock",
             options.ai1, options.ai2, options.board_size, options.games_per_match, debug);
+
+        BShip_Match_Log_Store(match, log_file_path);
+
+        TUI_Match_Display(match, options.match_display_type,
+            options.step_delay_ms, options.manual_stepping, debug);
+
+        BShip_Arena_Destroy(&arena);
+    }
+    else if (options.runtime == RUNTIME_REPLAY_MATCH)
+    {
+        BShip_Arena arena = {};
+        BShip_Arena_Initialize(&arena, 0);
+        BShip_MatchData match = {};
+
+        BShip_Match_Log_Load(&arena, &match, log_file_path);
 
         TUI_Match_Display(match, options.match_display_type,
             options.step_delay_ms, options.manual_stepping, debug);

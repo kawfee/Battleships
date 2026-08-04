@@ -294,32 +294,26 @@ void TUI_GameStepState_Apply(TUI_GameStepState *state, BShip_MatchData match,
         BShip_Event event = match.events.buffer[i];
         if (event.type == BSHIP_EVENT_SHIP_PLACEMENT)
         {
-            assert(event.value.indexes.ai1_ship_index < match.ai1.ships.length);
-            assert(event.value.indexes.ai2_ship_index < match.ai2.ships.length);
-            BShip_Ship ai1_ship = match.ai1.ships.buffer[event.value.indexes.ai1_ship_index];
-            BShip_Ship ai2_ship = match.ai2.ships.buffer[event.value.indexes.ai2_ship_index];
+            BShip_Ship ai1_ship = BShip_Ship_From_CompactShip(event.value.compact.ai1_ship);
+            BShip_Ship ai2_ship = BShip_Ship_From_CompactShip(event.value.compact.ai2_ship);
             TUI_Store_Ship(ai1_board, ai1_ship, BSHIP_SHIP);
             TUI_Store_Ship(ai2_board, ai2_ship, BSHIP_SHIP);
         }
         else if (event.type == BSHIP_EVENT_SHOT_RESULT)
         {
-            assert(event.value.indexes.ai1_shot_index < match.ai1.shots.length);
-            assert(event.value.indexes.ai2_shot_index < match.ai2.shots.length);
-            BShip_Shot ai1_shot = match.ai1.shots.buffer[event.value.indexes.ai1_shot_index];
-            BShip_Shot ai2_shot = match.ai2.shots.buffer[event.value.indexes.ai2_shot_index];
+            BShip_Shot ai1_shot = BShip_Shot_From_CompactShot(event.value.compact.ai1_shot);
+            BShip_Shot ai2_shot = BShip_Shot_From_CompactShot(event.value.compact.ai2_shot);
             BShip_Board_Set(ai1_board, ai2_shot.row, ai2_shot.column, ai2_shot.value);
             BShip_Board_Set(ai2_board, ai1_shot.row, ai1_shot.column, ai1_shot.value);
 
-            if (event.value.indexes.ai1_ship_index > 0)
+            if (event.value.compact.ai1_ship > 0)
             {
-                assert(event.value.indexes.ai1_ship_index < match.ai1.ships.length);
-                BShip_Ship ai1_dead_ship = match.ai1.ships.buffer[event.value.indexes.ai1_ship_index];
+                BShip_Ship ai1_dead_ship = BShip_Ship_From_CompactShip(event.value.compact.ai1_ship);
                 TUI_Store_Ship(ai1_board, ai1_dead_ship, BSHIP_KILL);
             }
-            if (event.value.indexes.ai2_ship_index > 0)
+            if (event.value.compact.ai2_ship > 0)
             {
-                assert(event.value.indexes.ai2_ship_index < match.ai2.ships.length);
-                BShip_Ship ai2_dead_ship = match.ai2.ships.buffer[event.value.indexes.ai2_ship_index];
+                BShip_Ship ai2_dead_ship = BShip_Ship_From_CompactShip(event.value.compact.ai2_ship);
                 TUI_Store_Ship(ai2_board, ai2_dead_ship, BSHIP_KILL);
             }
         }
@@ -430,25 +424,21 @@ void TUI_TextGroups_Add_EventDescriptions(vector<TUI_TextGroup> &ai1_group, vect
     case BSHIP_EVENT_SHIP_PLACEMENT:
         ai1_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
         ai2_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
-        assert(event.value.indexes.ai1_ship_index < match.ai1.ships.length);
-        assert(event.value.indexes.ai2_ship_index < match.ai2.ships.length);
-        ai1_ship = match.ai1.ships.buffer[event.value.indexes.ai1_ship_index];
-        ai2_ship = match.ai2.ships.buffer[event.value.indexes.ai2_ship_index];
+        ai1_ship = BShip_Ship_From_CompactShip(event.value.compact.ai1_ship);
+        ai2_ship = BShip_Ship_From_CompactShip(event.value.compact.ai2_ship);
         ai1_group.push_back(TUI_TextGroup_Make_ShipPlacementEvent(ai1_ship, BSHIP_PLAYER_1));
         ai2_group.push_back(TUI_TextGroup_Make_ShipPlacementEvent(ai2_ship, BSHIP_PLAYER_2));
         break;
     case BSHIP_EVENT_SHOT_RESULT:
         ai1_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
         ai2_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
-        assert(event.value.indexes.ai1_shot_index < match.ai1.shots.length);
-        assert(event.value.indexes.ai2_shot_index < match.ai2.shots.length);
-        ai1_shot = match.ai1.shots.buffer[event.value.indexes.ai1_shot_index];
-        ai2_shot = match.ai2.shots.buffer[event.value.indexes.ai2_shot_index];
-        if (event.value.indexes.ai1_ship_index > 0)
+        ai1_shot = BShip_Shot_From_CompactShot(event.value.compact.ai1_shot);
+        ai2_shot = BShip_Shot_From_CompactShot(event.value.compact.ai2_shot);
+        if (event.value.compact.ai1_ship > 0)
         {
             ai2_shot.value = BSHIP_KILL;
         }
-        if (event.value.indexes.ai2_ship_index > 0)
+        if (event.value.compact.ai2_ship > 0)
         {
             ai1_shot.value = BSHIP_KILL;
         }
@@ -475,11 +465,6 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
     size_t board_display_width = 2 + match.board_size;
     size_t name_display_width = ai1_name.size() > ai2_name.size() ? ai1_name.size() : ai2_name.size();
     size_t total_display_width = board_display_width > name_display_width ? board_display_width : name_display_width;
-
-    // size_t board_display_width = match.board_size + 15;
-    // size_t name_display_width = ai1_name.size() + 15;
-    // size_t board2_column_offset = board_display_width > name_display_width
-    //     ? board_display_width : name_display_width;
 
     uint32_t game_index = TUI_GameStepState_GameIndex_Get(state);
     uint32_t game_num = game_index + 1;

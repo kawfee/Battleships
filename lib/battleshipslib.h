@@ -37,7 +37,7 @@
     } while (0)
 
 #define BSHIP_DEFINE_ARRAY_PUSH(array_type, element_type) \
-static inline void array_type##_Push(array_type *array, element_type element) \
+void array_type##_Push(array_type *array, element_type element) \
 { \
     assert(array != NULL); \
     assert(array->buffer != NULL); \
@@ -107,6 +107,14 @@ typedef struct {
     uint32_t capacity;
 } BShip_ShipArray;
 
+typedef uint16_t BShip_CompactShip;
+
+typedef struct {
+    BShip_CompactShip *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_CompactShipArray;
+
 typedef struct {
     uint8_t row;
     uint8_t column;
@@ -119,10 +127,24 @@ typedef struct {
     uint32_t capacity;
 } BShip_ShotArray;
 
+typedef uint16_t BShip_CompactShot;
+
+typedef struct {
+    BShip_CompactShot *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_CompactShotArray;
+
 typedef struct {
     uint8_t *buffer;
     uint8_t size;
 } BShip_Board;
+
+typedef struct {
+    uint8_t *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_Buffer;
 
 typedef struct {
     char *buffer;
@@ -187,11 +209,11 @@ typedef struct {
     union {
         BShip_GameResult ai1_game_result; // NOTE(mattg): Player 2's state can be derived from Player 1's.
         struct {
-            uint32_t ai1_ship_index;
-            uint32_t ai2_ship_index;
-            uint32_t ai1_shot_index;
-            uint32_t ai2_shot_index;
-        } indexes;
+            BShip_CompactShip ai1_ship;
+            BShip_CompactShip ai2_ship;
+            BShip_CompactShot ai1_shot;
+            BShip_CompactShot ai2_shot;
+        } compact;
     } value;
     BShip_EventType type;
 } BShip_Event;
@@ -204,8 +226,6 @@ typedef struct {
 
 typedef struct {
     BShip_Error error;
-    BShip_ShipArray ships;
-    BShip_ShotArray shots;
     char *name;
     char *authors;
     uint32_t ai_name_length;
@@ -248,6 +268,11 @@ BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size);
 BShip_BoardValue BShip_Board_Get(BShip_Board board, uint8_t row, uint8_t column);
 void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_BoardValue value);
 
+BShip_CompactShip BShip_CompactShip_From_Ship(BShip_Ship ship);
+BShip_Ship BShip_Ship_From_CompactShip(BShip_CompactShip compact);
+BShip_CompactShot BShip_CompactShot_From_Shot(BShip_Shot shot);
+BShip_Shot BShip_Shot_From_CompactShot(BShip_CompactShot compact);
+
 // void BShip_Contest_Run(char *socket_path, char *ai_paths[], uint32_t ai_paths_length,
 //     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug);
 
@@ -262,6 +287,11 @@ size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_ma
 BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
     uint8_t board_size, uint32_t games_per_match, bool debug);
+
+void BShip_Match_Log_Store(BShip_MatchData match, char *path);
+
+bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path);
+
 #ifdef __cplusplus
 }
 #endif

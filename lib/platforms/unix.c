@@ -58,6 +58,17 @@ void BShip_Deallocate(void *ptr)
     }
 }
 
+bool BShip_PathIsFile(char *path)
+{
+    struct stat statbuf = {0};
+    if (stat(path, &statbuf) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return false;
+    }
+    return S_ISREG(statbuf.st_mode);
+}
+
 bool BShip_PathIsExecutable(char *path)
 {
     struct stat statbuf = {0};
@@ -78,6 +89,70 @@ bool BShip_PathIsDirectory(char *path)
         return false;
     }
     return (S_ISDIR(statbuf.st_mode));
+}
+
+ssize_t BShip_File_GetSize(char *path)
+{
+    struct stat statbuf = {0};
+    if (stat(path, &statbuf) == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        return -1;
+    }
+    if (!S_ISREG(statbuf.st_mode))
+    {
+        return -1;
+    }
+    return statbuf.st_size;
+}
+
+bool BShip_File_Read(char *path, BShip_Buffer *buffer, size_t size)
+{
+    assert(size <= buffer->capacity);
+    int fd = open(path, O_RDONLY);
+    if (fd == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    ssize_t count = read(fd, buffer->buffer, size);
+    if (count == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        buffer->length = 0;
+        goto on_error;
+    }
+    buffer->length = count;
+
+    close(fd);
+    return true;
+on_error:
+    if (fd != -1) close(fd);
+    return false;
+}
+
+bool BShip_File_Write(char *path, BShip_Buffer *buffer)
+{
+    int fd = open(path, O_CREAT|O_RDWR|O_TRUNC, 0664);
+    if (fd == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    ssize_t count = write(fd, buffer->buffer, buffer->length);
+    if (count == -1)
+    {
+        PRINT_ERROR(strerror(errno));
+        goto on_error;
+    }
+
+    close(fd);
+    return true;
+on_error:
+    if (fd != -1) close(fd);
+    return false;
 }
 
 size_t BShip_Connection_GetSize(void)
