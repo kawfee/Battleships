@@ -16,10 +16,14 @@
 
 BShip_CompactShip BShip_CompactShip_From_Ship(BShip_Ship ship)
 {
-    BShip_CompactShip compact = ship.row;
-    compact |= (ship.column << 4);
-    compact |= (ship.length << 8);
-    compact |= (ship.direction << 12);
+    assert(ship.row <= 0xF);
+    assert(ship.column <= 0xF);
+    assert(ship.length <= 0x7);
+    assert(ship.direction <= 0x1);
+    BShip_CompactShip compact = ship.row & 0xF;
+    compact |= ((ship.column & 0xF) << 4);
+    compact |= ((ship.length & 0x7) << 8);
+    compact |= ((ship.direction & 0x1) << 11);
     return compact;
 }
 
@@ -28,17 +32,20 @@ BShip_Ship BShip_Ship_From_CompactShip(BShip_CompactShip compact)
     BShip_Ship ship = {
         .row = compact & 0xF,
         .column = (compact >> 4) & 0xF,
-        .length = (compact >> 8) & 0xF,
-        .direction = (BShip_Direction)(compact >> 12) & 0xF,
+        .length = (compact >> 8) & 0x7,
+        .direction = (BShip_Direction)(compact >> 11) & 0x1,
     };
     return ship;
 }
 
 BShip_CompactShot BShip_CompactShot_From_Shot(BShip_Shot shot)
 {
-    BShip_CompactShot compact = shot.row;
-    compact |= (shot.column << 4);
-    compact |= (shot.value << 8);
+    assert(shot.row <= 0xF);
+    assert(shot.column <= 0xF);
+    assert(shot.value <= 0xF);
+    BShip_CompactShot compact = shot.row & 0xF;
+    compact |= ((shot.column & 0xF) << 4);
+    compact |= ((shot.value & 0xF) << 8);
     return compact;
 }
 

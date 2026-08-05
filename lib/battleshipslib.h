@@ -110,12 +110,6 @@ typedef struct {
 typedef uint16_t BShip_CompactShip;
 
 typedef struct {
-    BShip_CompactShip *buffer;
-    uint32_t length;
-    uint32_t capacity;
-} BShip_CompactShipArray;
-
-typedef struct {
     uint8_t row;
     uint8_t column;
     BShip_BoardValue value;
@@ -128,12 +122,6 @@ typedef struct {
 } BShip_ShotArray;
 
 typedef uint16_t BShip_CompactShot;
-
-typedef struct {
-    BShip_CompactShot *buffer;
-    uint32_t length;
-    uint32_t capacity;
-} BShip_CompactShotArray;
 
 typedef struct {
     uint8_t *buffer;
