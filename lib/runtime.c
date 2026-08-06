@@ -462,10 +462,10 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     {
         goto on_conn_accept_error;
     }
-    match.ai1.ai_name_length = strlen(match.ai1.name);
-    match.ai2.ai_name_length = strlen(match.ai2.name);
-    match.ai1.author_name_length = strlen(match.ai1.authors);
-    match.ai2.author_name_length = strlen(match.ai2.authors);
+    match.ai1.ai_name_length = strnlen(match.ai1.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai2.ai_name_length = strnlen(match.ai2.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai1.author_name_length = strnlen(match.ai1.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai2.author_name_length = strnlen(match.ai2.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
 
     BShip_Message_SetupMatch_Create(&ai1_message, match.board_size, BSHIP_PLAYER_1);
     BShip_Message_SetupMatch_Create(&ai2_message, match.board_size, BSHIP_PLAYER_2);

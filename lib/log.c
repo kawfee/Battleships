@@ -134,7 +134,7 @@ void BShip_Match_Log_Store(BShip_MatchData match, char *path)
 
     BShip_File_Write(path, &buffer);
 
-    free(buffer.buffer);
+    free(json);
     yyjson_mut_doc_free(doc);
 }
 
