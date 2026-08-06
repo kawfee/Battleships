@@ -98,7 +98,8 @@ static const TUI_SignalHandler GLOBAL_TUI_SIGNALS[] = {
 
 void TUI_Buffer_Write(std::string &buffer)
 {
-    write(STDOUT_FILENO, buffer.data(), buffer.size());
+    ssize_t out = write(STDOUT_FILENO, buffer.data(), buffer.size());
+    (void)out;
 }
 
 typedef struct {
@@ -386,7 +387,8 @@ TUI_Input TUI_Input_Get(bool wait_for_input, int32_t timeout_ms)
     {
         return input;
     }
-    read(STDIN_FILENO, &input.value, 1);
+    ssize_t in = read(STDIN_FILENO, &input.value, 1);
+    (void)in;
 
     if (input.value >= '0' && input.value <= '9')
     {
@@ -438,13 +440,13 @@ TUI_Input TUI_Input_Get(bool wait_for_input, int32_t timeout_ms)
         return input;
     }
     char check1 = '\0', check2 = '\0';
-    read(STDIN_FILENO, &check1, 1);
+    in = read(STDIN_FILENO, &check1, 1);
     if (check1 != '[')
     {
         input.type = INPUT_NONE;
         return input;
     }
-    read(STDIN_FILENO, &check2, 1);
+    in = read(STDIN_FILENO, &check2, 1);
     bool mouse_input = false;
     switch (check2)
     {
@@ -475,7 +477,7 @@ TUI_Input TUI_Input_Get(bool wait_for_input, int32_t timeout_ms)
     char mouse_check = '\0';
     while (mouse_check != 'M' && mouse_check != 'm' && idx < TUI_ARRAY_LENGTH(numbers))
     {
-        read(STDIN_FILENO, &mouse_check, 1);
+        in = read(STDIN_FILENO, &mouse_check, 1);
         if (mouse_check >= '0' && mouse_check <= '9')
         {
             numbers[idx] = (numbers[idx] * 10) + (mouse_check - '0');

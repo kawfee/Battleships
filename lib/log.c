@@ -21,6 +21,7 @@
 #define SHOT_KEY         "st"
 #define MESSAGE_KEY      "msg"
 
+
 BSHIP_DEFINE_ARRAY_PUSH(BShip_EventArray, BShip_Event)
 BSHIP_DEFINE_ARRAY_PUSH(BShip_U32Array, uint32_t)
 
@@ -285,6 +286,7 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
     if (!BShip_File_Read(path, &buffer, file_size)) return false;
 
     yyjson_doc *doc = yyjson_read((const char *)buffer.buffer, buffer.length, 0);
+
     if (doc == NULL) goto on_error;
     BSHIP_ARENA_TEMP_END(arena);
     {
@@ -339,13 +341,16 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
     if (match->events.buffer == NULL) goto on_error;
     match->events.capacity = events_size;
 
-    for (size_t i = 0; i < events_size; i++)
+    yyjson_arr_iter iter = {0};
+    yyjson_arr_iter_init(events, &iter);
+    yyjson_val *event = NULL;
+
+    while ((event = yyjson_arr_iter_next(&iter)))
     {
-        yyjson_val *event = yyjson_arr_get(events, i);
         if (!yyjson_is_arr(event)) goto on_error;
         size_t event_size = yyjson_arr_size(event);
         if (event_size == 0 || event_size > 5) goto on_error;
-        
+
         yyjson_val *event_type = yyjson_arr_get(event, 0);
         if (!yyjson_is_uint(event_type)) goto on_error;
         BShip_Event e = {
@@ -405,7 +410,6 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
         }
         BShip_EventArray_Push(&match->events, e);
     }
-
 
     yyjson_doc_free(doc);
     return true;

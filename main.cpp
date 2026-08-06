@@ -34,7 +34,9 @@
 //     long nanoseconds = ((end.time.tv_sec - start.time.tv_sec) * (long)1e9) + (
 //         end.time.tv_nsec - start.time.tv_nsec
 //     );
-//     printf("%ld cycles, %ld ns\n", cycles, nanoseconds);
+//     long microseconds = nanoseconds/1000;
+//     long milliseconds = nanoseconds/1000000;
+//     printf("%ld cycles, %ld ns, %ld us, %ld ms\n", cycles, nanoseconds, microseconds, milliseconds);
 // }
 
 vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
