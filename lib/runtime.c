@@ -10,13 +10,54 @@
 
 #include "arena.c"
 #include "message.c"
+#include "log.c"
 #include "game.c"
 #include "contest.c"
 
-BSHIP_DEFINE_ARRAY_PUSH(BShip_ShipArray, BShip_Ship)
-BSHIP_DEFINE_ARRAY_PUSH(BShip_ShotArray, BShip_Shot)
-BSHIP_DEFINE_ARRAY_PUSH(BShip_EventArray, BShip_Event)
-BSHIP_DEFINE_ARRAY_PUSH(BShip_U32Array, uint32_t)
+BShip_CompactShip BShip_CompactShip_From_Ship(BShip_Ship ship)
+{
+    assert(ship.row <= 0xF);
+    assert(ship.column <= 0xF);
+    assert(ship.length <= 0x7);
+    assert(ship.direction <= 0x1);
+    BShip_CompactShip compact = ship.row & 0xF;
+    compact |= ((ship.column & 0xF) << 4);
+    compact |= ((ship.length & 0x7) << 8);
+    compact |= ((ship.direction & 0x1) << 11);
+    return compact;
+}
+
+BShip_Ship BShip_Ship_From_CompactShip(BShip_CompactShip compact)
+{
+    BShip_Ship ship = {
+        .row = compact & 0xF,
+        .column = (compact >> 4) & 0xF,
+        .length = (compact >> 8) & 0x7,
+        .direction = (BShip_Direction)(compact >> 11) & 0x1,
+    };
+    return ship;
+}
+
+BShip_CompactShot BShip_CompactShot_From_Shot(BShip_Shot shot)
+{
+    assert(shot.row <= 0xF);
+    assert(shot.column <= 0xF);
+    assert(shot.value <= 0xF);
+    BShip_CompactShot compact = shot.row & 0xF;
+    compact |= ((shot.column & 0xF) << 4);
+    compact |= ((shot.value & 0xF) << 8);
+    return compact;
+}
+
+BShip_Shot BShip_Shot_From_CompactShot(BShip_CompactShot compact)
+{
+    BShip_Shot shot = {
+        .row = compact & 0xF,
+        .column = (compact >> 4) & 0xF,
+        .value = (BShip_BoardValue)(compact >> 8) & 0xF,
+    };
+    return shot;
+}
 
 size_t BShip_Game_CalculateMemorySize(uint8_t board_size)
 {
@@ -52,7 +93,6 @@ bool BShip_Game_Run(BShip_Arena *arena, BShip_Connection *conn,
         BShip_ShipArray ships;
         BShip_U8Array alive_ships;
         BShip_U8Array dead_ships;
-        uint32_t ship_index_start;
     } BShip_AIGameState;
 
     BShip_AIGameState ai1 = {
@@ -68,7 +108,6 @@ bool BShip_Game_Run(BShip_Arena *arena, BShip_Connection *conn,
             .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint8_t, ship_count_max),
             .capacity = ship_count_max,
         },
-        .ship_index_start = match->ai1.ships.length,
     };
 
     BShip_AIGameState ai2 = {
@@ -84,7 +123,6 @@ bool BShip_Game_Run(BShip_Arena *arena, BShip_Connection *conn,
             .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint8_t, ship_count_max),
             .capacity = ship_count_max,
         },
-        .ship_index_start = match->ai2.ships.length,
     };
     if (ai1.ships.buffer == NULL || ai1.alive_ships.buffer == NULL || ai1.dead_ships.buffer == NULL ||
         ai2.ships.buffer == NULL || ai2.alive_ships.buffer == NULL || ai2.dead_ships.buffer == NULL)
@@ -167,13 +205,10 @@ bool BShip_Game_Run(BShip_Arena *arena, BShip_Connection *conn,
 
         BShip_Event ship_place_event = {
             .type = BSHIP_EVENT_SHIP_PLACEMENT,
-            .value.indexes.ai1_ship_index = match->ai1.ships.length,
-            .value.indexes.ai2_ship_index = match->ai2.ships.length,
+            .value.compact.ai1_ship = BShip_CompactShip_From_Ship(ai1.ships.buffer[i]),
+            .value.compact.ai2_ship = BShip_CompactShip_From_Ship(ai2.ships.buffer[i]),
         };
         BShip_EventArray_Push(&match->events, ship_place_event);
-
-        BShip_ShipArray_Push(&match->ai1.ships, ai1.ships.buffer[i]);
-        BShip_ShipArray_Push(&match->ai2.ships, ai2.ships.buffer[i]);
     }
 
     bool next_shot = true;
@@ -222,15 +257,14 @@ bool BShip_Game_Run(BShip_Arena *arena, BShip_Connection *conn,
 
         BShip_Event shot_result_event = {
             .type = BSHIP_EVENT_SHOT_RESULT,
-            .value.indexes.ai1_ship_index = ai1_ship_dead ? ai1.ship_index_start + ai1_dead_ship_index : 0,
-            .value.indexes.ai2_ship_index = ai2_ship_dead ? ai2.ship_index_start + ai2_dead_ship_index : 0,
-            .value.indexes.ai1_shot_index = match->ai1.shots.length,
-            .value.indexes.ai2_shot_index = match->ai2.shots.length,
+            .value.compact.ai1_shot = BShip_CompactShot_From_Shot(ai1_shot),
+            .value.compact.ai2_shot = BShip_CompactShot_From_Shot(ai2_shot),
+            .value.compact.ai1_ship = ai1_ship_dead ?
+                BShip_CompactShip_From_Ship(ai1.ships.buffer[ai1_dead_ship_index]) : 0,
+            .value.compact.ai2_ship = ai2_ship_dead ?
+                BShip_CompactShip_From_Ship(ai2.ships.buffer[ai2_dead_ship_index]) : 0,
         };
         BShip_EventArray_Push(&match->events, shot_result_event);
-
-        BShip_ShotArray_Push(&match->ai1.shots, ai1_shot);
-        BShip_ShotArray_Push(&match->ai2.shots, ai2_shot);
 
         if (ai1.alive_ships.length == 0 || ai2.alive_ships.length == 0)
         {
@@ -301,7 +335,6 @@ size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_ma
     size_t shot_count_max = board_size * board_size * games_per_match;
     size_t game_temp_mem_size = BShip_Game_CalculateMemorySize(board_size);
     size_t per_ai_mem_size = (BSHIP_MESSAGE_NAME_SIZE_MAX * 4) + (BSHIP_MESSAGE_SIZE * 2)
-        + (sizeof(BShip_Ship) * (ship_count_max+1)) + (sizeof(BShip_Shot) * (shot_count_max+1))
         + BShip_AIConnection_GetSize();
     return game_temp_mem_size + (per_ai_mem_size * 2) + BShip_Connection_GetSize() +
         (sizeof(uint32_t) * games_per_match) +
@@ -366,42 +399,14 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
         memset(match.ai2.name, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
         memset(match.ai2.authors, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
     }
-    uint32_t ship_count_max = ShipCountMax_From_BoardSize(match.board_size) * match.games_per_match;
-    {
-        uint32_t ships_capacity = ship_count_max+1;
-        match.ai1.ships.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Ship, ships_capacity);
-        match.ai1.ships.capacity = ships_capacity;
-        match.ai2.ships.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Ship, ships_capacity);
-        match.ai2.ships.capacity = ships_capacity;
-        if (match.ai1.ships.buffer == NULL || match.ai2.ships.buffer == NULL)
-        {
-            return match;
-        }
-        BShip_Ship empty_ship = {0};
-        BShip_ShipArray_Push(&match.ai1.ships, empty_ship);
-        BShip_ShipArray_Push(&match.ai2.ships, empty_ship);
-    }
-    uint32_t shot_count_max = match.board_size * match.board_size * match.games_per_match;
-    {
-        uint32_t shots_capacity = shot_count_max+1;
-        match.ai1.shots.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Shot, shots_capacity);
-        match.ai1.shots.capacity = shots_capacity;
-        match.ai2.shots.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Shot, shots_capacity);
-        match.ai2.shots.capacity = shots_capacity;
-        if (match.ai1.shots.buffer == NULL || match.ai2.shots.buffer == NULL)
-        {
-            return match;
-        }
-        BShip_Shot empty_shot = {0};
-        BShip_ShotArray_Push(&match.ai1.shots, empty_shot);
-        BShip_ShotArray_Push(&match.ai2.shots, empty_shot);
-    }
     match.game_indexes.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint32_t, match.games_per_match);
     match.game_indexes.capacity = match.games_per_match;
     if (match.game_indexes.buffer == NULL)
     {
         return match;
     }
+    uint32_t ship_count_max = ShipCountMax_From_BoardSize(match.board_size) * match.games_per_match;
+    uint32_t shot_count_max = match.board_size * match.board_size * match.games_per_match;
     uint32_t events_max = ship_count_max + shot_count_max + (match.games_per_match * 2);
     match.events.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Event, events_max);
     match.events.capacity = events_max;
@@ -457,6 +462,10 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     {
         goto on_conn_accept_error;
     }
+    match.ai1.ai_name_length = strnlen(match.ai1.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai2.ai_name_length = strnlen(match.ai2.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai1.author_name_length = strnlen(match.ai1.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match.ai2.author_name_length = strnlen(match.ai2.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
 
     BShip_Message_SetupMatch_Create(&ai1_message, match.board_size, BSHIP_PLAYER_1);
     BShip_Message_SetupMatch_Create(&ai2_message, match.board_size, BSHIP_PLAYER_2);
