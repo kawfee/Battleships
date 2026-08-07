@@ -471,7 +471,7 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     BShip_Message_SetupMatch_Create(&ai2_message, match.board_size, BSHIP_PLAYER_2);
 
     match.ai1.error.type = BShip_AIConnection_Send(ai1_conn, ai1_message, debug);
-    match.ai2.error.type = BShip_AIConnection_Send(ai2_conn, ai1_message, debug);
+    match.ai2.error.type = BShip_AIConnection_Send(ai2_conn, ai2_message, debug);
     if (match.ai1.error.type != ERROR_SUCCESS || match.ai2.error.type != ERROR_SUCCESS)
     {
         goto on_conn_accept_error;
