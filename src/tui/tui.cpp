@@ -158,10 +158,18 @@ void TUI_TextGroup_Add(TUI_TextGroup *group, const TUI_Text &text)
 TUI_TextGroup TUI_TextGroup_Default(const TUI_Text &text)
 {
     TUI_TextGroup group = {
-        .text = {},
+        .text = {text},
         .column = 1,
     };
-    TUI_TextGroup_Add(&group, text);
+    return group;
+}
+
+TUI_TextGroup TUI_TextGroup_New(const TUI_Text &text, uint32_t column)
+{
+    TUI_TextGroup group = {
+        .text = {text},
+        .column = column,
+    };
     return group;
 }
 
@@ -242,8 +250,9 @@ void TUI_Line_Add(TUI_Line *line, const TUI_TextGroup &group)
 
 TUI_Line TUI_Line_Default(const TUI_TextGroup &group)
 {
-    TUI_Line line = {};
-    TUI_Line_Add(&line, group);
+    TUI_Line line = {
+        .line = {group},
+    };
     return line;
 }
 
