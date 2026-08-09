@@ -468,10 +468,10 @@ TUI_Text TUI_Text_From_GameResult(BShip_GameResult game_result)
         return TUI_Text_New("WIN", {BOLD}, GREEN, RESET);
         break;
     case BSHIP_LOSS:
-        return TUI_Text_New("LOSS", {}, RED, RESET);
+        return TUI_Text_New("LOSS", {BOLD}, RED, RESET);
         break;
     case BSHIP_TIE:
-        return TUI_Text_Default("TIE");
+        return TUI_Text_New("TIE", {}, RESET, RESET);
         break;
     }
     return TUI_Text_Default("");
@@ -657,6 +657,8 @@ void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BSh
         } break;
         }
 
+        string_stats.push_back(strings);
+
         // calculate widest of everything to calculate positions of everything
         {
             uint32_t width = TUI_Text_Size(strings.key);
@@ -683,8 +685,6 @@ void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BSh
             width = TUI_Text_Size(strings.ai2_v3);
             widest_v3 = width > widest_v3 ? width : widest_v3;
         }
-
-        string_stats.push_back(strings);
     }
 
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
