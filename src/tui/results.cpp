@@ -483,104 +483,157 @@ typedef enum {
     STATS_RATIO,
 } TUI_StatsType;
 
-void TUI_TextGroup_Add_PlayerStats(TUI_TextGroup *group, TUI_StatsType type, TUI_Text value1, TUI_Text value2,
-    TUI_Text value3, uint32_t widest_v1, uint32_t widest_v2, uint32_t widest_v3)
+typedef struct {
+    uint32_t numerator;
+    uint32_t denominator;
+} TUI_AIValueStats;
+
+typedef struct {
+    TUI_Text value1;
+    TUI_Text value2;
+    TUI_Text value3;
+} TUI_AIStringStats;
+
+TUI_AIStringStats TUI_AIStringStats_From_AIValueStats(TUI_StatsType type, TUI_AIValueStats values)
 {
+    TUI_AIStringStats strings = {};
+    switch (type)
+    {
+    case STATS_GAME_RESULT:
+        strings.value1 = TUI_Text_From_GameResult((BShip_GameResult)values.numerator);
+        break;
+    case STATS_PERCENT:
+        strings.value1 = TUI_Text_Default(to_string(values.numerator));
+        strings.value2 = TUI_Text_Default(to_string(values.denominator));
+        strings.value3 = TUI_Text_Default(
+            to_string(static_cast<uint64_t>(
+                truncf(((float)values.numerator/(float)values.denominator)*100.0f)
+            )) + "%"
+        );
+        break;
+    case STATS_RATIO:
+    {
+        stringstream strm;
+        strm << fixed << setprecision(2) << (float)values.numerator/(float)values.denominator;
+        strings.value1 = TUI_Text_Default(to_string(values.numerator));
+        strings.value2 = TUI_Text_Default(to_string(values.denominator));
+        strings.value3 = TUI_Text_Default(strm.str());
+    } break;
+    }
+    return strings;
+}
+
+TUI_TextGroup TUI_TextGroup_PlayerStats_Get(TUI_StatsType type, TUI_AIStringStats strings, uint32_t column,
+    uint32_t widest_v1, uint32_t widest_v2, uint32_t widest_v3)
+{
+    TUI_TextGroup group = {
+        .text = {},
+        .column = column,
+    };
     if (type == STATS_GAME_RESULT)
     {
-        TUI_TextGroup_Add(group, value1);
+        TUI_TextGroup_Add(&group, strings.value1);
     }
     else
     {
-        size_t v1_size = TUI_Text_Size(value1);
+        size_t v1_size = TUI_Text_Size(strings.value1);
         size_t leftover = v1_size < widest_v1 ? widest_v1 - v1_size : 0;
         if (leftover)
         {
-            TUI_TextGroup_Add(group, TUI_Text_Default(string(leftover, ' ')));
+            TUI_TextGroup_Add(&group, TUI_Text_Default(string(leftover, ' ')));
         }
-        TUI_TextGroup_Add(group, value1);
-        TUI_TextGroup_Add(group, TUI_Text_Default("/"));
-        TUI_TextGroup_Add(group, value2);
+        TUI_TextGroup_Add(&group, strings.value1);
+        TUI_TextGroup_Add(&group, TUI_Text_Default("/"));
+        TUI_TextGroup_Add(&group, strings.value2);
 
         // NOTE(mattg): both values may need padding between each other (and a space),
         // so add all spaces at once.
-        size_t v2_size = TUI_Text_Size(value2);
+        size_t v2_size = TUI_Text_Size(strings.value2);
         leftover = v2_size < widest_v2 ? widest_v2 - v2_size : 0;
-        size_t v3_size = TUI_Text_Size(value3);
+        size_t v3_size = TUI_Text_Size(strings.value3);
         leftover += v3_size < widest_v3 ? widest_v3 - v3_size : 0;
 
-        TUI_TextGroup_Add(group, TUI_Text_Default(string(leftover+2, ' ')));
-        TUI_TextGroup_Add(group, value3);
+        TUI_TextGroup_Add(&group, TUI_Text_Default(string(leftover+2, ' ')));
+        TUI_TextGroup_Add(&group, strings.value3);
     }
+    return group;
 }
 
-void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BShip_MatchStats stats,
-    uint32_t game_index)
+void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BShip_GameStats stats)
 {
     assert(window != NULL);
-    if (stats.game_stats.capacity > 0)
-    {
-        assert(stats.game_stats.buffer != NULL);
-    }
-    if (stats.game_stats.length > 0)
-    {
-        assert(game_index < stats.game_stats.length);
-    }
 
     typedef struct {
         TUI_Text key;
-        uint32_t ai1_numerator;
-        uint32_t ai1_denominator;
-        uint32_t ai2_numerator;
-        uint32_t ai2_denominator;
+        TUI_AIValueStats ai1;
+        TUI_AIValueStats ai2;
         TUI_StatsType type;
     } ValueStats;
 
-    BShip_GameStats game_stats = stats.game_stats.buffer[game_index];
-
-    uint8_t ai1_duplicates = game_stats.ai1.duplicate_hits + game_stats.ai1.duplicate_misses + game_stats.ai1.duplicate_kills;
-    uint8_t ai2_duplicates = game_stats.ai2.duplicate_hits + game_stats.ai2.duplicate_misses + game_stats.ai2.duplicate_kills;
-    uint8_t shots = game_stats.ai1.hits + game_stats.ai1.misses + ai1_duplicates;
+    uint8_t ai1_duplicates = stats.ai1.duplicate_hits + stats.ai1.duplicate_misses + stats.ai1.duplicate_kills;
+    uint8_t ai2_duplicates = stats.ai2.duplicate_hits + stats.ai2.duplicate_misses + stats.ai2.duplicate_kills;
+    uint8_t shots = stats.ai1.hits + stats.ai1.misses + ai1_duplicates;
 
     vector<ValueStats> value_stats = {
         {
             .key = TUI_Text_New("Result", {BOLD}, RESET, RESET),
-            .ai1_numerator = game_stats.ai1_game_result,
-            .ai1_denominator = 0,
-            .ai2_numerator = game_stats.ai1_game_result == BSHIP_TIE ? BSHIP_TIE : game_stats.ai1_game_result == BSHIP_WIN ? BSHIP_LOSS : BSHIP_WIN,
-            .ai2_denominator = 0,
+            .ai1 = {
+                .numerator = stats.ai1_game_result,
+                .denominator = 0,
+            },
+            .ai2 = {
+                .numerator = stats.ai1_game_result == BSHIP_TIE ? BSHIP_TIE :
+                    stats.ai1_game_result == BSHIP_WIN ? BSHIP_LOSS : BSHIP_WIN,
+                .denominator = 0,
+            },
             .type = STATS_GAME_RESULT,
         },
         {
             .key = TUI_Text_New("Hit rate", {BOLD}, RESET, RESET),
-            .ai1_numerator = game_stats.ai1.hits,
-            .ai1_denominator = shots,
-            .ai2_numerator = game_stats.ai2.hits,
-            .ai2_denominator = shots,
+            .ai1 = {
+                .numerator = stats.ai1.hits,
+                .denominator = shots,
+            },
+            .ai2 = {
+                .numerator = stats.ai2.hits,
+                .denominator = shots,
+            },
             .type = STATS_PERCENT,
         },
         {
             .key = TUI_Text_New("Useful shot ratio", {BOLD}, RESET, RESET),
-            .ai1_numerator = game_stats.ai1.hits,
-            .ai1_denominator = (uint32_t)game_stats.ai1.misses + ai1_duplicates,
-            .ai2_numerator = game_stats.ai2.hits,
-            .ai2_denominator = (uint32_t)game_stats.ai2.misses + ai2_duplicates,
+            .ai1 = {
+                .numerator = stats.ai1.hits,
+                .denominator = (uint32_t)stats.ai1.misses + ai1_duplicates,
+            },
+            .ai2 = {
+                .numerator = stats.ai2.hits,
+                .denominator = (uint32_t)stats.ai2.misses + ai2_duplicates,
+            },
             .type = STATS_RATIO,
         },
         {
             .key = TUI_Text_New("Ships killed", {BOLD}, RESET, RESET),
-            .ai1_numerator = game_stats.ai1.ships_killed,
-            .ai1_denominator = game_stats.ships_placed,
-            .ai2_numerator = game_stats.ai2.ships_killed,
-            .ai2_denominator = game_stats.ships_placed,
+            .ai1 = {
+                .numerator = stats.ai1.ships_killed,
+                .denominator = stats.ships_placed,
+            },
+            .ai2 = {
+                .numerator = stats.ai2.ships_killed,
+                .denominator = stats.ships_placed,
+            },
             .type = STATS_PERCENT,
         },
         {
             .key = TUI_Text_New("Ship cells", {BOLD}, RESET, RESET),
-            .ai1_numerator = game_stats.ai1.hits,
-            .ai1_denominator = game_stats.ship_cells,
-            .ai2_numerator = game_stats.ai2.hits,
-            .ai2_denominator = game_stats.ship_cells,
+            .ai1 = {
+                .numerator = stats.ai1.hits,
+                .denominator = stats.ship_cells,
+            },
+            .ai2 = {
+                .numerator = stats.ai2.hits,
+                .denominator = stats.ship_cells,
+            },
             .type = STATS_PERCENT,
         },
     };
@@ -588,12 +641,17 @@ void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BSh
     {
         ValueStats duplicate_stats = {
             .key = TUI_Text_New("Duplicate shots", {BOLD}, RESET, RESET),
-            .ai1_numerator = ai1_duplicates,
-            .ai1_denominator = shots,
-            .ai2_numerator = ai2_duplicates,
-            .ai2_denominator = shots,
+            .ai1 = {
+                .numerator = ai1_duplicates,
+                .denominator = shots,
+            },
+            .ai2 = {
+                .numerator = ai2_duplicates,
+                .denominator = shots,
+            },
             .type = STATS_PERCENT,
         };
+        // NOTE(mattg): Insert at 2 because I want it to appear after "Hit rate"
         value_stats.insert(value_stats.begin() + 2, duplicate_stats);
     }
 
@@ -604,12 +662,8 @@ void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BSh
 
     typedef struct {
         TUI_Text key;
-        TUI_Text ai1_v1;
-        TUI_Text ai1_v2;
-        TUI_Text ai1_v3;
-        TUI_Text ai2_v1;
-        TUI_Text ai2_v2;
-        TUI_Text ai2_v3;
+        TUI_AIStringStats ai1;
+        TUI_AIStringStats ai2;
         TUI_StatsType type;
     } StringStats;
 
@@ -620,42 +674,9 @@ void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BSh
         StringStats strings = {};
         strings.key = values.key;
         strings.type = values.type;
-        switch (values.type)
-        {
-        case STATS_GAME_RESULT:
-            strings.ai1_v1 = TUI_Text_From_GameResult((BShip_GameResult)values.ai1_numerator);
-            strings.ai2_v1 = TUI_Text_From_GameResult((BShip_GameResult)values.ai2_numerator);
-            break;
-        case STATS_PERCENT:
-            strings.ai1_v1 = TUI_Text_Default(to_string(values.ai1_numerator));
-            strings.ai1_v2 = TUI_Text_Default(to_string(values.ai1_denominator));
-            strings.ai1_v3 = TUI_Text_Default(
-                to_string(static_cast<uint64_t>(
-                    truncf(((float)values.ai1_numerator/(float)values.ai1_denominator)*100.0f)
-                )) + "%"
-            );
-            strings.ai2_v1 = TUI_Text_Default(to_string(values.ai2_numerator));
-            strings.ai2_v2 = TUI_Text_Default(to_string(values.ai2_denominator));
-            strings.ai2_v3 = TUI_Text_Default(
-                to_string(static_cast<uint64_t>(
-                    truncf(((float)values.ai2_numerator/(float)values.ai2_denominator)*100.0f)
-                )) + "%"
-            );
-            break;
-        case STATS_RATIO:
-        {
-            stringstream ai1;
-            stringstream ai2;
-            ai1 << fixed << setprecision(2) << (float)values.ai1_numerator/(float)values.ai1_denominator;
-            ai2 << fixed << setprecision(2) << (float)values.ai2_numerator/(float)values.ai2_denominator;
-            strings.ai1_v1 = TUI_Text_Default(to_string(values.ai1_numerator));
-            strings.ai1_v2 = TUI_Text_Default(to_string(values.ai1_denominator));
-            strings.ai1_v3 = TUI_Text_Default(ai1.str());
-            strings.ai2_v1 = TUI_Text_Default(to_string(values.ai2_numerator));
-            strings.ai2_v2 = TUI_Text_Default(to_string(values.ai2_denominator));
-            strings.ai2_v3 = TUI_Text_Default(ai2.str());
-        } break;
-        }
+
+        strings.ai1 = TUI_AIStringStats_From_AIValueStats(strings.type, values.ai1);
+        strings.ai2 = TUI_AIStringStats_From_AIValueStats(strings.type, values.ai2);
 
         string_stats.push_back(strings);
 
@@ -667,22 +688,22 @@ void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BSh
         {
             if (strings.type != STATS_GAME_RESULT)
             {
-                uint32_t width = TUI_Text_Size(strings.ai1_v1);
+                uint32_t width = TUI_Text_Size(strings.ai1.value1);
                 widest_v1 = width > widest_v1 ? width : widest_v1;
-                width = TUI_Text_Size(strings.ai2_v1);
+                width = TUI_Text_Size(strings.ai2.value1);
                 widest_v1 = width > widest_v1 ? width : widest_v1;
             }
         }
         {
-            uint32_t width = TUI_Text_Size(strings.ai1_v2);
+            uint32_t width = TUI_Text_Size(strings.ai1.value2);
             widest_v2 = width > widest_v2 ? width : widest_v2;
-            width = TUI_Text_Size(strings.ai2_v2);
+            width = TUI_Text_Size(strings.ai2.value2);
             widest_v2 = width > widest_v2 ? width : widest_v2;
         }
         {
-            uint32_t width = TUI_Text_Size(strings.ai1_v3);
+            uint32_t width = TUI_Text_Size(strings.ai1.value3);
             widest_v3 = width > widest_v3 ? width : widest_v3;
-            width = TUI_Text_Size(strings.ai2_v3);
+            width = TUI_Text_Size(strings.ai2.value3);
             widest_v3 = width > widest_v3 ? width : widest_v3;
         }
     }
@@ -763,18 +784,11 @@ void TUI_Add_GameStats(TUI_Window *window, string ai1_name, string ai2_name, BSh
 
         TUI_Line line = TUI_Line_Default(TUI_TextGroup_Default(strings.key));
 
-        TUI_TextGroup ai1_group = {
-            .text = {},
-            .column = player1_column,
-        };
-        TUI_TextGroup ai2_group = {
-            .text = {},
-            .column = player2_column,
-        };
-        TUI_TextGroup_Add_PlayerStats(&ai1_group, strings.type, strings.ai1_v1, strings.ai1_v2, strings.ai1_v3,
+        TUI_TextGroup ai1_group = TUI_TextGroup_PlayerStats_Get(strings.type, strings.ai1, player1_column,
             widest_v1, widest_v2, widest_v3);
-        TUI_TextGroup_Add_PlayerStats(&ai2_group, strings.type, strings.ai2_v1, strings.ai2_v2, strings.ai2_v3,
+        TUI_TextGroup ai2_group = TUI_TextGroup_PlayerStats_Get(strings.type, strings.ai2, player2_column,
             widest_v1, widest_v2, widest_v3);
+
         TUI_Line_Add(&line, ai1_group);
         TUI_Line_Add(&line, ai2_group);
 
@@ -838,7 +852,9 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
     }
     if (event.type == BSHIP_EVENT_GAME_RESULT)
     {
-        TUI_Add_GameStats(window, ai1_name, ai2_name, stats, game_index);
+        assert(game_index < stats.game_stats.length);
+        BShip_GameStats game_stats = stats.game_stats.buffer[game_index];
+        TUI_Add_GameStats(window, ai1_name, ai2_name, game_stats);
     }
 }
 
