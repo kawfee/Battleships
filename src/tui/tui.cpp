@@ -347,9 +347,10 @@ void TUI_Window_Print(TUI_Window *window)
     window->buffer = conio::resetAll() + conio::clearScreen() + conio::gotoRowCol(1, 1);
     size_t line_count = window->lines.size();
     size_t window_height = window->size.height;
-    if (window->scroll_index >= line_count)
+    size_t scrollable_height = line_count > window_height ? line_count - window_height : 0;
+    if (window->scroll_index > scrollable_height)
     {
-        window->scroll_index = line_count - 1;
+        window->scroll_index = scrollable_height;
     }
     if (line_count < window_height)
     {
