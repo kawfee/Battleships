@@ -146,10 +146,10 @@ void TUI_BoardSize_Display(TUI_Window *window, TUI_OptionsState *state)
     }
 
     string prefix = state->board_size_selection == BSHIP_BOARD_SIZE_MIN ? "  " : "- ";
-    string postfix = state->board_size_selection == BSHIP_BOARD_SIZE_MAX ? "" : " +";
+    string suffix = state->board_size_selection == BSHIP_BOARD_SIZE_MAX ? "" : " +";
     string bs = to_string(state->board_size_selection);
     if (bs.size() == 1) bs = " " + bs;
-    TUI_Text text = TUI_Text_Default(prefix + bs + postfix);
+    TUI_Text text = TUI_Text_Default(prefix + bs + suffix);
     TUI_TextGroup_Add(&group, text);
     TUI_Window_Add(window, TUI_Line_Default(group));
 
@@ -256,10 +256,11 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("0-9      Edit"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Bksp     Delete"))));
-    TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"));
+    Color enter_color = state->games_per_match_invalid ? GRAY : RESET;
+    TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_New("Enter    Select", {}, enter_color, RESET));
     if (state->games_per_match_invalid)
     {
-        TUI_TextGroup_Add(&enter_group, TUI_Text_New(" (disabled)", { BOLD }, RESET, RESET));
+        TUI_TextGroup_Add(&enter_group, TUI_Text_New(" (disabled)", { BOLD }, GRAY, RESET));
     }
     TUI_Window_Add(window, TUI_Line_Default(enter_group));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
@@ -299,11 +300,11 @@ void TUI_MatchPlayer_Display(TUI_Window *window, TUI_OptionsState *state,
 {
     if (player == BSHIP_PLAYER_1 && state->ai1_selection >= ais.size())
     {
-        state->ai1_selection = ais.size() - 1;
+        state->ai1_selection = ais.size() > 0 ? ais.size() - 1 : 0;
     }
     else if (player == BSHIP_PLAYER_2 && state->ai2_selection >= ais.size())
     {
-        state->ai2_selection = ais.size() - 1;
+        state->ai2_selection = ais.size() > 0 ? ais.size() - 1 : 0;
     }
     
     TUI_TextGroup prompt_group = TUI_TextGroup_Default(
@@ -638,10 +639,11 @@ void TUI_StepDelayMS_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("0-9 .    Edit"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Bksp     Delete"))));
-    TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"));
+    Color enter_color = state->step_delay_ms_invalid ? GRAY : RESET;
+    TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_New("Enter    Select", {}, enter_color, RESET));
     if (state->step_delay_ms_invalid)
     {
-        TUI_TextGroup_Add(&enter_group, TUI_Text_New(" (disabled)", { BOLD }, RESET, RESET));
+        TUI_TextGroup_Add(&enter_group, TUI_Text_New(" (disabled)", { BOLD }, GRAY, RESET));
     }
     TUI_Window_Add(window, TUI_Line_Default(enter_group));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
@@ -868,6 +870,15 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
         // NOTE(mattg): TUI_Options_Display returns true if all necessary input has been received.
         if (TUI_Options_Display(&window, &state, ais))
         {
+            break;
+        }
+        
+        // NOTE(mattg): Check for valid state
+        if (state.runtime.has_value() && (
+            state.runtime.value() == RUNTIME_MATCH || state.runtime.value() == RUNTIME_CONTEST
+        ) && ais.size() == 0)
+        {
+            should_exit = true;
             break;
         }
 

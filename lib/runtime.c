@@ -14,6 +14,11 @@
 #include "game.c"
 #include "contest.c"
 
+BSHIP_DEFINE_ARRAY_ASSERT(BShip_EventArray)
+BSHIP_DEFINE_ARRAY_ASSERT(BShip_U32Array)
+BSHIP_DEFINE_ARRAY_ASSERT(BShip_GameStatsArray)
+BSHIP_DEFINE_ARRAY_PUSH(BShip_GameStatsArray, BShip_GameStats)
+
 BShip_CompactShip BShip_CompactShip_From_Ship(BShip_Ship ship)
 {
     assert(ship.row <= 0xF);
@@ -414,6 +419,7 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     {
         return match;
     }
+    BShip_ArenaMark events_mark = BShip_ArenaMark_Get(arena);
 
     BShip_Connection *conn = BShip_Arena_Push(arena, BShip_Connection_GetSize());
     if (conn == NULL)
@@ -529,7 +535,114 @@ on_process_error:
     }
 on_conn_create_error:
     BShip_Connection_Close(conn);
+
+    // Free all other unnecessary values.
+    BShip_Arena_Rollback(arena, events_mark);
+
     return match;
+}
+
+void BShip_AIStats_From_ShotValue(BShip_AIMatchStats *match, BShip_AIGameStats *game, BShip_BoardValue value)
+{
+    switch (value)
+    {
+    case BSHIP_WATER:
+    case BSHIP_SHIP:
+    case BSHIP_KILL:
+        assert(false);
+        break;
+    case BSHIP_HIT:
+        game->hits++;
+        match->hits++;
+        break;
+    case BSHIP_MISS:
+        game->misses++;
+        match->misses++;
+        break;
+    case BSHIP_DUPLICATE_HIT:
+        game->duplicate_hits++;
+        match->duplicate_hits++;
+        break;
+    case BSHIP_DUPLICATE_MISS:
+        game->duplicate_misses++;
+        match->duplicate_misses++;
+        break;
+    case BSHIP_DUPLICATE_KILL:
+        game->duplicate_kills++;
+        match->duplicate_kills++;
+        break;
+    }
+}
+
+BShip_MatchStats BShip_MatchStats_Get(BShip_Arena *arena, BShip_MatchData match)
+{
+    assert(arena != NULL);
+    BShip_MatchStats stats = {
+        .game_stats = {
+            .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_GameStats, match.game_indexes.length),
+            .capacity = match.game_indexes.length,
+        },
+    };
+    if (stats.game_stats.buffer == NULL)
+    {
+        return stats;
+    }
+
+    BShip_GameStats game = {0};
+    for (size_t i = 0; i < match.events.length; i++)
+    {
+        BShip_Event event = match.events.buffer[i];
+        switch (event.type)
+        {
+        case BSHIP_EVENT_NONE:
+            break;
+        case BSHIP_EVENT_GAME_START:
+            memset(&game, 0, sizeof(game));
+            break;
+        case BSHIP_EVENT_SHIP_PLACEMENT:
+            game.ships_placed++;
+            stats.ships_placed++;
+            BShip_Ship ai1_ship = BShip_Ship_From_CompactShip(event.value.compact.ai1_ship);
+            game.ship_cells += ai1_ship.length;
+            stats.ship_cells += ai1_ship.length;
+            break;
+        case BSHIP_EVENT_SHOT_RESULT:
+        {
+            BShip_Shot ai1_shot = BShip_Shot_From_CompactShot(event.value.compact.ai1_shot);
+            BShip_Shot ai2_shot = BShip_Shot_From_CompactShot(event.value.compact.ai2_shot);
+            BShip_AIStats_From_ShotValue(&stats.ai1, &game.ai1, ai1_shot.value);
+            BShip_AIStats_From_ShotValue(&stats.ai2, &game.ai2, ai2_shot.value);
+            if (event.value.compact.ai1_ship > 0)
+            {
+                game.ai2.ships_killed++;
+                stats.ai2.ships_killed++;
+            }
+            if (event.value.compact.ai2_ship > 0)
+            {
+                game.ai1.ships_killed++;
+                stats.ai1.ships_killed++;
+            }
+        } break;
+        case BSHIP_EVENT_GAME_RESULT:
+            game.ai1_game_result = event.value.ai1_game_result;
+            switch (game.ai1_game_result)
+            {
+            case BSHIP_WIN:
+                stats.ai1_wins++;
+                break;
+            case BSHIP_LOSS:
+                stats.ai1_losses++;
+                break;
+            case BSHIP_TIE:
+                stats.ai1_ties++;
+                break;
+            }
+            BShip_GameStatsArray_Push(&stats.game_stats, game);
+            break;
+        }
+    }
+
+    return stats;
 }
 
 BShip_Board BShip_Board_Allocate(BShip_Arena *arena, uint8_t board_size)

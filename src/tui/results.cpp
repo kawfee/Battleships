@@ -5,10 +5,30 @@
  * @date 2026-07-04
  */
 
+#include <cmath>
+#include <iomanip>
+#include <math.h>
 #include <time.h>
 
 #include "shared.cpp"
 #include "../../lib/battleshipslib.h"
+
+#define MIN_SET(value1, value2) (value1 = value1 < value2 ? value1 : value2)
+#define MAX_SET(value1, value2) (value1 = value1 > value2 ? value1 : value2)
+#define MIN_MAX_AVG_SET(value_stat, index, ai1_value, ai2_value) \
+    do { \
+        if (index == 0) \
+        { \
+            value_stat.ai1.fff.f1 = ai1_value; \
+            value_stat.ai2.fff.f1 = ai1_value; \
+        } \
+        MIN_SET(value_stat.ai1.fff.f1, ai1_value); \
+        MIN_SET(value_stat.ai2.fff.f1, ai2_value); \
+        MAX_SET(value_stat.ai1.fff.f2, ai1_value); \
+        MAX_SET(value_stat.ai2.fff.f2, ai2_value); \
+        value_stat.ai1.fff.f3 += ai1_value; \
+        value_stat.ai2.fff.f3 += ai2_value; \
+    } while (0)
 
 const Color PLAYER_1_COLOR = BLUE, PLAYER_2_COLOR = YELLOW;
 
@@ -17,8 +37,7 @@ Color TUI_Player_Color_Get(BShip_PlayerNum player)
     return player == BSHIP_PLAYER_1 ? PLAYER_1_COLOR : PLAYER_2_COLOR;
 }
 
-void TUI_TextGroup_Add_Board(vector<TUI_TextGroup> &group, const string &name,
-    BShip_Board board, BShip_PlayerNum player)
+void TUI_Board_Add(vector<TUI_TextGroup> &group, const string &name, BShip_Board board, BShip_PlayerNum player)
 {
     group.push_back(TUI_TextGroup_Default(TUI_Text_New(name, { BOLD }, TUI_Player_Color_Get(player), RESET)));
     {
@@ -457,8 +476,591 @@ void TUI_TextGroups_Add_EventDescriptions(vector<TUI_TextGroup> &ai1_group, vect
     }
 }
 
+typedef enum {
+    STATS_GAME_RESULT,
+    STATS_PERCENT,
+    STATS_RATIO,
+    STATS_PERCENT_MIN_MAX_AVG,
+    STATS_RATIO_MIN_MAX_AVG,
+} TUI_StatsType;
+
+typedef union {
+    struct {
+        uint32_t u1;
+        uint32_t u2;
+        float f3;
+    } uuf;
+    struct {
+        float f1;
+        float f2;
+        float f3;
+    } fff;
+} TUI_AIValueStats;
+
+typedef struct {
+    string key;
+    TUI_AIValueStats ai1;
+    TUI_AIValueStats ai2;
+    TUI_StatsType type;
+} TUI_ValueStats;
+
+TUI_ValueStats TUI_ValueStats_UUF_New(string key, TUI_StatsType type,
+    uint32_t ai1_u1, uint32_t ai1_u2, float ai1_f3, uint32_t ai2_u1, uint32_t ai2_u2, float ai2_f3)
+{
+    TUI_ValueStats stats = {
+        .key = key,
+        .ai1 = {
+            .uuf = {
+                .u1 = ai1_u1,
+                .u2 = ai1_u2,
+                .f3 = ai1_f3,
+            },
+        },
+        .ai2 = {
+            .uuf = {
+                .u1 = ai2_u1,
+                .u2 = ai2_u2,
+                .f3 = ai2_f3,
+            },
+        },
+        .type = type,
+    };
+    return stats;
+}
+
+typedef struct {
+    TUI_Text value1;
+    TUI_Text value2;
+    TUI_Text value3;
+} TUI_AIStringStats;
+
+typedef struct {
+    TUI_Text key;
+    TUI_AIStringStats ai1;
+    TUI_AIStringStats ai2;
+    TUI_StatsType type;
+} TUI_StringStats;
+
+typedef struct {
+    vector<TUI_StringStats> stats;
+} TUI_GameStats;
+
+typedef struct {
+    uint32_t widest_key;
+    uint32_t widest_value1;
+    uint32_t widest_value2;
+    uint32_t widest_value3;
+} TUI_ValueWidth;
+
+typedef struct {
+    vector<TUI_GameStats> games;
+    vector<TUI_StringStats> stats;
+    TUI_ValueWidth game_widths;
+    TUI_ValueWidth match_widths;
+} TUI_MatchStats;
+
+TUI_Text TUI_Text_From_GameResult(BShip_GameResult game_result)
+{
+    switch (game_result)
+    {
+    case BSHIP_WIN:
+        return TUI_Text_New("WIN", {BOLD}, GREEN, RESET);
+        break;
+    case BSHIP_LOSS:
+        return TUI_Text_New("LOSS", {BOLD}, RED, RESET);
+        break;
+    case BSHIP_TIE:
+        return TUI_Text_New("TIE", {}, RESET, RESET);
+        break;
+    }
+    return TUI_Text_Default("");
+}
+
+TUI_Text TUI_Text_From_Percent(float percent)
+{
+    return TUI_Text_Default(to_string(static_cast<uint64_t>(truncf(percent * 100.0f))) + "%");
+}
+
+TUI_Text TUI_Text_From_Ratio(float ratio)
+{
+    if (isinf(ratio)) // NOTE(mattg): infinity is hit when there is a 0 in the denominator
+    {
+        return TUI_Text_Default("Perfect");
+    }
+    stringstream strm = {};
+    strm << fixed << setprecision(2) << ratio << ":1";
+    return TUI_Text_Default(strm.str());
+}
+
+TUI_AIStringStats TUI_AIStringStats_From_AIValueStats(TUI_StatsType type, TUI_AIValueStats values)
+{
+    TUI_AIStringStats strings = {};
+    switch (type)
+    {
+    case STATS_GAME_RESULT:
+        strings.value1 = TUI_Text_From_GameResult((BShip_GameResult)values.uuf.u1);
+        break;
+    case STATS_PERCENT:
+        strings.value1 = TUI_Text_Default(to_string(values.uuf.u1));
+        strings.value2 = TUI_Text_Default(to_string(values.uuf.u2));
+        strings.value3 = TUI_Text_From_Percent(values.uuf.f3);
+        break;
+    case STATS_RATIO:
+        strings.value1 = TUI_Text_Default(to_string(values.uuf.u1));
+        strings.value2 = TUI_Text_Default(to_string(values.uuf.u2));
+        strings.value3 = TUI_Text_From_Ratio(values.uuf.f3);
+        break;
+    case STATS_PERCENT_MIN_MAX_AVG:
+        strings.value1 = TUI_Text_From_Percent(values.fff.f1);
+        strings.value2 = TUI_Text_From_Percent(values.fff.f2);
+        strings.value3 = TUI_Text_From_Percent(values.fff.f3);
+        break;
+    case STATS_RATIO_MIN_MAX_AVG:
+        strings.value1 = TUI_Text_From_Ratio(values.fff.f1);
+        strings.value2 = TUI_Text_From_Ratio(values.fff.f2);
+        strings.value3 = TUI_Text_From_Ratio(values.fff.f3);
+        break;
+    }
+    return strings;
+}
+
+TUI_MatchStats TUI_MatchStats_From_BShip_MatchStats(BShip_MatchStats match, uint8_t board_size)
+{
+    // math
+    uint32_t num_games = match.ai1_wins + match.ai1_losses + match.ai1_ties;
+    float num_games_f = (float)num_games;
+    vector<TUI_ValueStats> match_vs = {
+        TUI_ValueStats_UUF_New("Wins", STATS_PERCENT,
+            match.ai1_wins, num_games, (float)match.ai1_wins / num_games_f,
+            match.ai1_losses, num_games, (float)match.ai1_losses / num_games_f),
+        TUI_ValueStats_UUF_New("Losses", STATS_PERCENT,
+            match.ai1_losses, num_games, (float)match.ai1_losses / num_games_f,
+            match.ai1_wins, num_games, (float)match.ai1_wins / num_games_f),
+    };
+    if (match.ai1_ties)
+    {
+        match_vs.push_back(TUI_ValueStats_UUF_New("Ties", STATS_PERCENT,
+            match.ai1_ties, num_games, (float)match.ai1_ties / num_games_f,
+            match.ai1_ties, num_games, (float)match.ai1_ties / num_games_f));
+    }
+
+    TUI_ValueStats match_hit_rate = {
+        .key = "Hit rate",
+        .ai1 = {},
+        .ai2 = {},
+        .type = STATS_PERCENT_MIN_MAX_AVG,
+    };
+    TUI_ValueStats match_duplicate_shots = {
+        .key = "Duplicate shots",
+        .ai1 = {},
+        .ai2 = {},
+        .type = STATS_PERCENT_MIN_MAX_AVG,
+    };
+    TUI_ValueStats match_useful_shot_ratio = {
+        .key = "Useful shot ratio",
+        .ai1 = {},
+        .ai2 = {},
+        .type = STATS_RATIO_MIN_MAX_AVG,
+    };
+    TUI_ValueStats match_amount_board_shot = {
+        .key = "Amount Board Shot",
+        .ai1 = {},
+        .ai2 = {},
+        .type = STATS_PERCENT_MIN_MAX_AVG,
+    };
+    TUI_ValueStats match_ships_killed = {
+        .key = "Ships killed",
+        .ai1 = {},
+        .ai2 = {},
+        .type = STATS_PERCENT_MIN_MAX_AVG,
+    };
+    TUI_ValueStats match_ship_cells_hit = {
+        .key = "Ship cells hit",
+        .ai1 = {},
+        .ai2 = {},
+        .type = STATS_PERCENT_MIN_MAX_AVG,
+    };
+
+    vector<vector<TUI_ValueStats>> games_vs;
+    for (size_t i = 0; i < match.game_stats.length; i++)
+    {
+        BShip_GameStats game = match.game_stats.buffer[i];
+        uint8_t ai1_duplicates = game.ai1.duplicate_hits + game.ai1.duplicate_misses + game.ai1.duplicate_kills;
+        uint8_t ai2_duplicates = game.ai2.duplicate_hits + game.ai2.duplicate_misses + game.ai2.duplicate_kills;
+        uint8_t shots = game.ai1.hits + game.ai1.misses + ai1_duplicates;
+        BShip_GameResult ai2_game_result = game.ai1_game_result == BSHIP_TIE ? BSHIP_TIE :
+            game.ai1_game_result == BSHIP_WIN ? BSHIP_LOSS : BSHIP_WIN;
+
+        vector<TUI_ValueStats> values = {
+            TUI_ValueStats_UUF_New("Result", STATS_GAME_RESULT, game.ai1_game_result, 0, 0.0f,
+                ai2_game_result, 0, 0.0f),
+        };
+
+        float ai1_hit_value = (float)game.ai1.hits / (float)shots;
+        float ai2_hit_value = (float)game.ai2.hits / (float)shots;
+        MIN_MAX_AVG_SET(match_hit_rate, i, ai1_hit_value, ai2_hit_value);
+        values.push_back(TUI_ValueStats_UUF_New("Hit rate", STATS_PERCENT,
+            game.ai1.hits, shots, ai1_hit_value,
+            game.ai2.hits, shots, ai2_hit_value));
+
+        if (ai1_duplicates || ai2_duplicates)
+        {
+            float ai1_duplicate_value = (float)ai1_duplicates / (float)shots;
+            float ai2_duplicate_value = (float)ai2_duplicates / (float)shots;
+            MIN_MAX_AVG_SET(match_duplicate_shots, i, ai1_duplicate_value, ai2_duplicate_value);
+            values.push_back(TUI_ValueStats_UUF_New("Duplicate shots", STATS_PERCENT,
+                ai1_duplicates, shots, ai1_duplicate_value,
+                ai2_duplicates, shots, ai2_duplicate_value));
+        }
+
+        float ai1_useful_shot_value = (float)game.ai1.hits / (float)(game.ai1.misses + ai1_duplicates);
+        float ai2_useful_shot_value = (float)game.ai2.hits / (float)(game.ai2.misses + ai2_duplicates);
+        MIN_MAX_AVG_SET(match_useful_shot_ratio, i, ai1_useful_shot_value, ai2_useful_shot_value);
+        values.push_back(TUI_ValueStats_UUF_New("Useful shot ratio", STATS_RATIO,
+            game.ai1.hits, game.ai1.misses + ai1_duplicates, ai1_useful_shot_value,
+            game.ai2.hits, game.ai2.misses + ai2_duplicates, ai2_useful_shot_value));
+
+        float board_cells = (float)(board_size * board_size);
+        float ai1_amount_board_shot_value = (float)(game.ai1.hits + game.ai1.misses) / board_cells;
+        float ai2_amount_board_shot_value = (float)(game.ai2.hits + game.ai2.misses) / board_cells;
+        MIN_MAX_AVG_SET(match_amount_board_shot, i, ai1_amount_board_shot_value, ai2_amount_board_shot_value);
+        // NOTE(mattg): this value is only for the match stats
+
+        float ai1_ships_killed_value = (float)game.ai1.ships_killed / (float)game.ships_placed;
+        float ai2_ships_killed_value = (float)game.ai2.ships_killed / (float)game.ships_placed;
+        MIN_MAX_AVG_SET(match_ships_killed, i, ai1_ships_killed_value, ai2_ships_killed_value);
+        values.push_back(TUI_ValueStats_UUF_New("Ships killed", STATS_PERCENT,
+            game.ai1.ships_killed, game.ships_placed + ai1_duplicates, ai1_ships_killed_value,
+            game.ai2.ships_killed, game.ai2.misses + ai2_duplicates, ai2_ships_killed_value));
+
+        float ai1_ship_cells_hit_value = (float)game.ai1.hits / (float)game.ship_cells;
+        float ai2_ship_cells_hit_value = (float)game.ai2.hits / (float)game.ship_cells;
+        MIN_MAX_AVG_SET(match_ship_cells_hit, i, ai1_ship_cells_hit_value, ai2_ship_cells_hit_value);
+        values.push_back(TUI_ValueStats_UUF_New("Ship cells hit", STATS_PERCENT,
+            game.ai1.hits, game.ship_cells, ai1_ship_cells_hit_value,
+            game.ai2.hits, game.ship_cells, ai2_ship_cells_hit_value));
+
+        games_vs.push_back(values);
+    }
+    match_hit_rate.ai1.fff.f3 = match_hit_rate.ai1.fff.f3 / num_games_f;
+    match_hit_rate.ai2.fff.f3 = match_hit_rate.ai2.fff.f3 / num_games_f;
+    match_vs.push_back(match_hit_rate);
+    if (match.ai1.duplicate_hits || match.ai1.duplicate_misses || match.ai1.duplicate_kills ||
+        match.ai2.duplicate_hits || match.ai2.duplicate_misses || match.ai2.duplicate_kills)
+    {
+        match_duplicate_shots.ai1.fff.f3 = match_duplicate_shots.ai1.fff.f3 / num_games_f;
+        match_duplicate_shots.ai2.fff.f3 = match_duplicate_shots.ai2.fff.f3 / num_games_f;
+        match_vs.push_back(match_duplicate_shots);
+    }
+    match_useful_shot_ratio.ai1.fff.f3 = match_useful_shot_ratio.ai1.fff.f3 / num_games_f;
+    match_useful_shot_ratio.ai2.fff.f3 = match_useful_shot_ratio.ai2.fff.f3 / num_games_f;
+    match_vs.push_back(match_useful_shot_ratio);
+    match_amount_board_shot.ai1.fff.f3 = match_amount_board_shot.ai1.fff.f3 / num_games_f;
+    match_amount_board_shot.ai2.fff.f3 = match_amount_board_shot.ai2.fff.f3 / num_games_f;
+    match_vs.push_back(match_amount_board_shot);
+    match_ships_killed.ai1.fff.f3 = match_ships_killed.ai1.fff.f3 / num_games_f;
+    match_ships_killed.ai2.fff.f3 = match_ships_killed.ai2.fff.f3 / num_games_f;
+    match_vs.push_back(match_ships_killed);
+    match_ship_cells_hit.ai1.fff.f3 = match_ship_cells_hit.ai1.fff.f3 / num_games_f;
+    match_ship_cells_hit.ai2.fff.f3 = match_ship_cells_hit.ai2.fff.f3 / num_games_f;
+    match_vs.push_back(match_ship_cells_hit);
+
+    // strings
+    TUI_MatchStats stats = {};
+
+    for (size_t i = 0; i < match_vs.size(); i++)
+    {
+        TUI_ValueStats vs = match_vs.at(i);
+        TUI_StringStats ss = {
+            .key = TUI_Text_New(vs.key, { BOLD }, RESET, RESET),
+            .ai1 = TUI_AIStringStats_From_AIValueStats(vs.type, vs.ai1),
+            .ai2 = TUI_AIStringStats_From_AIValueStats(vs.type, vs.ai2),
+            .type = vs.type,
+        };
+        MAX_SET(stats.match_widths.widest_key, TUI_Text_Size(ss.key));
+        if (ss.type != STATS_GAME_RESULT)
+        {
+            MAX_SET(stats.match_widths.widest_value1, TUI_Text_Size(ss.ai1.value1));
+            MAX_SET(stats.match_widths.widest_value1, TUI_Text_Size(ss.ai2.value1));
+            MAX_SET(stats.match_widths.widest_value2, TUI_Text_Size(ss.ai1.value2));
+            MAX_SET(stats.match_widths.widest_value2, TUI_Text_Size(ss.ai2.value2));
+            MAX_SET(stats.match_widths.widest_value3, TUI_Text_Size(ss.ai1.value3));
+            MAX_SET(stats.match_widths.widest_value3, TUI_Text_Size(ss.ai2.value3));
+        }
+        stats.stats.push_back(ss);
+    }
+
+    for (size_t i = 0; i < games_vs.size(); i++)
+    {
+        vector<TUI_ValueStats> game_vs = games_vs.at(i);
+        TUI_GameStats game_stats = {};
+        for (size_t j = 0; j < game_vs.size(); j++)
+        {
+            TUI_ValueStats vs = game_vs.at(j);
+            TUI_StringStats ss = {
+                .key = TUI_Text_New(vs.key, { BOLD }, RESET, RESET),
+                .ai1 = TUI_AIStringStats_From_AIValueStats(vs.type, vs.ai1),
+                .ai2 = TUI_AIStringStats_From_AIValueStats(vs.type, vs.ai2),
+                .type = vs.type,
+            };
+            if (ss.type != STATS_GAME_RESULT)
+            {
+                MAX_SET(stats.game_widths.widest_key, TUI_Text_Size(ss.key));
+                MAX_SET(stats.game_widths.widest_value1, TUI_Text_Size(ss.ai1.value1));
+                MAX_SET(stats.game_widths.widest_value1, TUI_Text_Size(ss.ai2.value1));
+                MAX_SET(stats.game_widths.widest_value2, TUI_Text_Size(ss.ai1.value2));
+                MAX_SET(stats.game_widths.widest_value2, TUI_Text_Size(ss.ai2.value2));
+                MAX_SET(stats.game_widths.widest_value3, TUI_Text_Size(ss.ai1.value3));
+                MAX_SET(stats.game_widths.widest_value3, TUI_Text_Size(ss.ai2.value3));
+            }
+            game_stats.stats.push_back(ss);
+        }
+        stats.games.push_back(game_stats);
+    }
+
+    return stats;
+}
+
+TUI_TextGroup TUI_TextGroup_PlayerStats_Get(TUI_StatsType type, TUI_AIStringStats stats, uint32_t column,
+    uint32_t widest_v1, uint32_t widest_v2, uint32_t widest_v3)
+{
+    TUI_TextGroup group = {
+        .text = {},
+        .column = column,
+    };
+    string divider = "";
+    switch (type)
+    {
+    case STATS_GAME_RESULT:
+        TUI_TextGroup_Add(&group, stats.value1);
+        break;
+    case STATS_PERCENT:
+    case STATS_RATIO:
+        divider = "/";
+        break;
+    case STATS_PERCENT_MIN_MAX_AVG:
+    case STATS_RATIO_MIN_MAX_AVG:
+        divider = "-";
+        break;
+    }
+    if (type != STATS_GAME_RESULT)
+    {
+        size_t v1_size = TUI_Text_Size(stats.value1);
+        size_t leftover = v1_size < widest_v1 ? widest_v1 - v1_size : 0;
+        if (leftover)
+        {
+            TUI_TextGroup_Add(&group, TUI_Text_Default(string(leftover, ' ')));
+        }
+        TUI_TextGroup_Add(&group, stats.value1);
+        TUI_TextGroup_Add(&group, TUI_Text_Default(divider));
+        TUI_TextGroup_Add(&group, stats.value2);
+        
+        // NOTE(mattg): both values may need padding between each other (and 2 spaces),
+        // so add all all spaces all at once.
+        size_t v2_size = TUI_Text_Size(stats.value2);
+        leftover = v2_size < widest_v2 ? widest_v2 - v2_size : 0;
+        size_t v3_size = TUI_Text_Size(stats.value3);
+        leftover += v3_size < widest_v3 ? widest_v3 - v3_size : 0;
+
+        TUI_TextGroup_Add(&group, TUI_Text_Default(string(leftover+2, ' ')));
+        TUI_TextGroup_Add(&group, stats.value3);
+    }
+
+    return group;
+}
+
+void TUI_GameStats_Display(TUI_Window *window, string ai1_name, string ai2_name,
+    TUI_MatchStats stats, uint32_t game_index)
+{
+    assert(window != NULL);
+    assert(game_index < stats.games.size());
+
+    TUI_GameStats game_stats = stats.games.at(game_index);
+
+    TUI_Text ai1_text = TUI_Text_New(ai1_name, { BOLD }, TUI_Player_Color_Get(BSHIP_PLAYER_1), RESET);
+    TUI_Text ai2_text = TUI_Text_New(ai2_name, { BOLD }, TUI_Player_Color_Get(BSHIP_PLAYER_2), RESET);
+    uint32_t player1_column = 0;
+    uint32_t player2_column = 0;
+    uint32_t max_stats_width = 0;
+    {
+        uint32_t key_width = stats.game_widths.widest_key;
+        uint32_t ai1_name_size = TUI_Text_Size(ai1_text);
+        uint32_t ai2_name_size = TUI_Text_Size(ai2_text);
+        uint32_t key_spacer = 5;
+        uint32_t player_spacer = 4;
+        uint32_t player_stats_width = stats.game_widths.widest_value1 + 1 + stats.game_widths.widest_value2 + 2 + stats.game_widths.widest_value3;
+        uint32_t player1_width = player_stats_width > ai1_name_size ? player_stats_width : ai1_name_size;
+        uint32_t player2_width = player_stats_width > ai2_name_size ? player_stats_width : ai2_name_size;
+        uint32_t total_stats_width = stats.game_widths.widest_key + key_spacer + player1_width + player_spacer + player2_width;
+        if (total_stats_width > window->size.width)
+        {
+            int space_to_remove = total_stats_width - window->size.width;
+            assert(space_to_remove > 0);
+            if ((int)key_width > space_to_remove)
+            {
+                key_width -= space_to_remove;
+                space_to_remove = 0;
+            }
+            else
+            {
+                space_to_remove -= key_width;
+                key_width = 0;
+            }
+            if (space_to_remove > 0 && player1_width > player_stats_width)
+            {
+                int player1_space_available = player1_width - player_stats_width;
+                if (player1_space_available > space_to_remove)
+                {
+                    player1_space_available -= space_to_remove;
+                    space_to_remove = 0;
+                    player1_width = player_stats_width + player1_space_available;
+                }
+                else
+                {
+                    space_to_remove -= player1_space_available;
+                    player1_width = player_stats_width;
+                }
+            }
+            if (space_to_remove > 0 && player2_width > player_stats_width)
+            {
+                int player2_space_available = player2_width - player_stats_width;
+                if (player2_space_available > space_to_remove)
+                {
+                    player2_space_available -= space_to_remove;
+                    space_to_remove = 0;
+                    player2_width = player_stats_width + player2_space_available;
+                }
+                else
+                {
+                    space_to_remove -= player2_space_available;
+                    player2_width = player_stats_width;
+                }
+            }
+        }
+        player1_column = key_width + key_spacer;
+        player2_column = player1_column + player1_width + player_spacer;
+        max_stats_width = key_width + key_spacer + player1_width + player_spacer + player2_width;
+    }
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Line player_line = TUI_Line_Default(TUI_TextGroup_Default(
+        TUI_Text_New("Game Stats", { BOLD }, RESET, RESET)
+    ));
+    TUI_Line_Add(&player_line, TUI_TextGroup_New(ai1_text, player1_column));
+    TUI_Line_Add(&player_line, TUI_TextGroup_New(ai2_text, player2_column));
+    TUI_Window_Add(window, player_line);
+    TUI_Window_Add(window, TUI_Line_Default(
+        TUI_TextGroup_Default(TUI_Text_Default(string(max_stats_width-1, '-')))
+    ));
+    for (size_t i = 0; i < game_stats.stats.size(); i++)
+    {
+        TUI_StringStats strings = game_stats.stats.at(i);
+        TUI_Line line = TUI_Line_Default(TUI_TextGroup_Default(strings.key));
+        TUI_TextGroup ai1_group = TUI_TextGroup_PlayerStats_Get(strings.type, strings.ai1, player1_column,
+            stats.game_widths.widest_value1, stats.game_widths.widest_value2, stats.game_widths.widest_value3);
+        TUI_TextGroup ai2_group = TUI_TextGroup_PlayerStats_Get(strings.type, strings.ai2, player2_column,
+            stats.game_widths.widest_value1, stats.game_widths.widest_value2, stats.game_widths.widest_value3);
+        TUI_Line_Add(&line, ai1_group);
+        TUI_Line_Add(&line, ai2_group);
+
+        TUI_Window_Add(window, line);
+    }
+}
+
+void TUI_MatchStats_Display(TUI_Window *window, string ai1_name, string ai2_name, TUI_MatchStats stats)
+{
+    assert(window != NULL);
+
+    TUI_Text ai1_text = TUI_Text_New(ai1_name, { BOLD }, TUI_Player_Color_Get(BSHIP_PLAYER_1), RESET);
+    TUI_Text ai2_text = TUI_Text_New(ai2_name, { BOLD }, TUI_Player_Color_Get(BSHIP_PLAYER_2), RESET);
+    uint32_t player1_column = 0;
+    uint32_t player2_column = 0;
+    uint32_t max_stats_width = 0;
+    {
+        uint32_t key_width = stats.match_widths.widest_key;
+        uint32_t ai1_name_size = TUI_Text_Size(ai1_text);
+        uint32_t ai2_name_size = TUI_Text_Size(ai2_text);
+        uint32_t key_spacer = 5;
+        uint32_t player_spacer = 4;
+        uint32_t player_stats_width = stats.match_widths.widest_value1 + 1 + stats.match_widths.widest_value2 + 2 + stats.match_widths.widest_value3;
+        uint32_t player1_width = player_stats_width > ai1_name_size ? player_stats_width : ai1_name_size;
+        uint32_t player2_width = player_stats_width > ai2_name_size ? player_stats_width : ai2_name_size;
+        uint32_t total_stats_width = stats.match_widths.widest_key + key_spacer + player1_width + player_spacer + player2_width;
+        if (total_stats_width > window->size.width)
+        {
+            int space_to_remove = total_stats_width - window->size.width;
+            assert(space_to_remove > 0);
+            if ((int)key_width > space_to_remove)
+            {
+                key_width -= space_to_remove;
+                space_to_remove = 0;
+            }
+            else
+            {
+                space_to_remove -= key_width;
+                key_width = 0;
+            }
+            if (space_to_remove > 0 && player1_width > player_stats_width)
+            {
+                int player1_space_available = player1_width - player_stats_width;
+                if (player1_space_available > space_to_remove)
+                {
+                    player1_space_available -= space_to_remove;
+                    space_to_remove = 0;
+                    player1_width = player_stats_width + player1_space_available;
+                }
+                else
+                {
+                    space_to_remove -= player1_space_available;
+                    player1_width = player_stats_width;
+                }
+            }
+            if (space_to_remove > 0 && player2_width > player_stats_width)
+            {
+                int player2_space_available = player2_width - player_stats_width;
+                if (player2_space_available > space_to_remove)
+                {
+                    player2_space_available -= space_to_remove;
+                    space_to_remove = 0;
+                    player2_width = player_stats_width + player2_space_available;
+                }
+                else
+                {
+                    space_to_remove -= player2_space_available;
+                    player2_width = player_stats_width;
+                }
+            }
+        }
+        player1_column = key_width + key_spacer;
+        player2_column = player1_column + player1_width + player_spacer;
+        max_stats_width = key_width + key_spacer + player1_width + player_spacer + player2_width;
+    }
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+    TUI_Line player_line = TUI_Line_Default(TUI_TextGroup_Default(
+        TUI_Text_New("Match Stats", { BOLD }, RESET, RESET)
+    ));
+    TUI_Line_Add(&player_line, TUI_TextGroup_New(ai1_text, player1_column));
+    TUI_Line_Add(&player_line, TUI_TextGroup_New(ai2_text, player2_column));
+    TUI_Window_Add(window, player_line);
+    TUI_Window_Add(window, TUI_Line_Default(
+        TUI_TextGroup_Default(TUI_Text_Default(string(max_stats_width-1, '-')))
+    ));
+    for (size_t i = 0; i < stats.stats.size(); i++)
+    {
+        TUI_StringStats strings = stats.stats.at(i);
+        TUI_Line line = TUI_Line_Default(TUI_TextGroup_Default(strings.key));
+        TUI_TextGroup ai1_group = TUI_TextGroup_PlayerStats_Get(strings.type, strings.ai1, player1_column,
+            stats.match_widths.widest_value1, stats.match_widths.widest_value2, stats.match_widths.widest_value3);
+        TUI_TextGroup ai2_group = TUI_TextGroup_PlayerStats_Get(strings.type, strings.ai2, player2_column,
+            stats.match_widths.widest_value1, stats.match_widths.widest_value2, stats.match_widths.widest_value3);
+        TUI_Line_Add(&line, ai1_group);
+        TUI_Line_Add(&line, ai2_group);
+
+        TUI_Window_Add(window, line);
+    }
+}
+
 void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BShip_MatchData match,
-    BShip_Board ai1_board, BShip_Board ai2_board)
+    TUI_MatchStats stats, BShip_Board ai1_board, BShip_Board ai2_board)
 {
     string ai1_name = match.ai1.name, ai2_name = match.ai2.name;
     // NOTE(mattg): 2 for the number and column line
@@ -476,8 +1078,8 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
     vector<TUI_TextGroup> ai1_group = {};
     vector<TUI_TextGroup> ai2_group = {};
 
-    TUI_TextGroup_Add_Board(ai1_group, match.ai1.name, ai1_board, BSHIP_PLAYER_1);
-    TUI_TextGroup_Add_Board(ai2_group, match.ai2.name, ai2_board, BSHIP_PLAYER_2);
+    TUI_Board_Add(ai1_group, match.ai1.name, ai1_board, BSHIP_PLAYER_1);
+    TUI_Board_Add(ai2_group, match.ai2.name, ai2_board, BSHIP_PLAYER_2);
 
     BShip_Event event = TUI_GameStepState_Event_Get(state, match);
     TUI_TextGroups_Add_EventDescriptions(ai1_group, ai2_group, match, event);
@@ -510,6 +1112,10 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
         {
             TUI_Window_Add(window, TUI_Line_Default(ai2_group.at(i)));
         }
+    }
+    if (event.type == BSHIP_EVENT_GAME_RESULT)
+    {
+        TUI_GameStats_Display(window, ai1_name, ai2_name, stats, game_index);
     }
 }
 
@@ -631,6 +1237,9 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
     BShip_Arena arena = {};
     BShip_Arena_Initialize(&arena, 0);
 
+    BShip_MatchStats match_stats = BShip_MatchStats_Get(&arena, match);
+    TUI_MatchStats stats = TUI_MatchStats_From_BShip_MatchStats(match_stats, match.board_size);
+
     BShip_Board ai1_board = BShip_Board_Allocate(&arena, match.board_size);
     BShip_Board ai2_board = BShip_Board_Allocate(&arena, match.board_size);
 
@@ -686,7 +1295,7 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
         {
             TUI_GameStepState_Apply(&state, match, ai1_board, ai2_board);
 
-            TUI_GameStepState_Display(&window, &state, match, ai1_board, ai2_board);
+            TUI_GameStepState_Display(&window, &state, match, stats, ai1_board, ai2_board);
 
             TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
             if (!state.game_stepping_over)
@@ -707,6 +1316,10 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
                     TUI_Text_Default("Esc/q    Quit")
                 )));
             }
+        }
+        if (state.game_stepping_over)
+        {
+            TUI_MatchStats_Display(&window, match.ai1.name, match.ai2.name, stats);
         }
 
         TUI_Window_Print(&window);

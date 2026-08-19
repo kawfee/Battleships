@@ -46,6 +46,13 @@ void array_type##_Push(array_type *array, element_type element) \
     array->length++; \
 }
 
+#define BSHIP_DEFINE_ARRAY_ASSERT(array_type) \
+void array_type##_Assert(array_type array) \
+{ \
+    assert(array.capacity > 0 ? array.buffer != NULL : array.buffer == NULL); \
+    assert(array.length <= array.capacity); \
+}
+
 typedef enum {
     BSHIP_PLAYER_1 = 1,
     BSHIP_PLAYER_2 = 2,
@@ -230,6 +237,49 @@ typedef struct {
 } BShip_MatchData;
 
 typedef struct {
+    uint8_t hits;
+    uint8_t misses;
+    uint8_t duplicate_hits;
+    uint8_t duplicate_misses;
+    uint8_t duplicate_kills;
+    uint8_t ships_killed;
+} BShip_AIGameStats;
+
+typedef struct {
+    BShip_AIGameStats ai1;
+    BShip_AIGameStats ai2;
+    uint8_t ships_placed;
+    uint8_t ship_cells;
+    BShip_GameResult ai1_game_result;
+} BShip_GameStats;
+
+typedef struct {
+    BShip_GameStats *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_GameStatsArray;
+
+typedef struct {
+    uint32_t hits;
+    uint32_t misses;
+    uint32_t duplicate_hits;
+    uint32_t duplicate_misses;
+    uint32_t duplicate_kills;
+    uint32_t ships_killed;
+} BShip_AIMatchStats;
+
+typedef struct {
+    BShip_GameStatsArray game_stats;
+    BShip_AIMatchStats ai1;
+    BShip_AIMatchStats ai2;
+    uint32_t ships_placed;
+    uint32_t ship_cells;
+    uint32_t ai1_wins;
+    uint32_t ai1_losses;
+    uint32_t ai1_ties;
+} BShip_MatchStats;
+
+typedef struct {
     char *file_name;
     char *file_path;
     char *runtime_directory;
@@ -275,6 +325,8 @@ size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_ma
 BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
     uint8_t board_size, uint32_t games_per_match, bool debug);
+
+BShip_MatchStats BShip_MatchStats_Get(BShip_Arena *arena, BShip_MatchData match);
 
 void BShip_Match_Log_Store(BShip_MatchData match, char *path);
 
