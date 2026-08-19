@@ -583,8 +583,12 @@ TUI_Text TUI_Text_From_Percent(float percent)
 
 TUI_Text TUI_Text_From_Ratio(float ratio)
 {
+    if (isinf(ratio)) // NOTE(mattg): infinity is hit when there is a 0 in the denominator
+    {
+        return TUI_Text_Default("Perfect");
+    }
     stringstream strm = {};
-    strm << fixed << setprecision(2) << ratio;
+    strm << fixed << setprecision(2) << ratio << ":1";
     return TUI_Text_Default(strm.str());
 }
 
