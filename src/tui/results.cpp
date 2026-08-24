@@ -576,9 +576,25 @@ TUI_Text TUI_Text_From_GameResult(BShip_GameResult game_result)
     return TUI_Text_Default("");
 }
 
+string String_From_Float(float value)
+{
+    stringstream strm = {};
+    strm << fixed << setprecision(2) << value;
+    string str = strm.str();
+    while (str.back() == '0')
+    {
+        str.pop_back();
+    }
+    if (str.back() == '.')
+    {
+        str.pop_back();
+    }
+    return str;
+}
+
 TUI_Text TUI_Text_From_Percent(float percent)
 {
-    return TUI_Text_Default(to_string(static_cast<uint64_t>(truncf(percent * 100.0f))) + "%");
+    return TUI_Text_Default(String_From_Float(percent * 100.0f) + "%");
 }
 
 TUI_Text TUI_Text_From_Ratio(float ratio)
@@ -589,21 +605,7 @@ TUI_Text TUI_Text_From_Ratio(float ratio)
     {
         return TUI_Text_Default("Perfect");
     }
-    stringstream strm = {};
-    strm << fixed << setprecision(2) << ratio;
-    string result = strm.str();
-
-    while (result.back() == '0')
-    {
-        result.pop_back();
-    }
-    if (result.back() == '.')
-    {
-        result.pop_back();
-    }
-    result += ":1";
-
-    return TUI_Text_Default(result);
+    return TUI_Text_Default(String_From_Float(ratio) + ":1");
 }
 
 TUI_AIStringStats TUI_AIStringStats_From_AIValueStats(TUI_StatsType type, TUI_AIValueStats values)
