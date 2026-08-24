@@ -747,7 +747,7 @@ TUI_MatchStats TUI_MatchStats_From_BShip_MatchStats(BShip_MatchStats match, uint
         MIN_MAX_AVG_SET(match_ships_killed, i, ai1_ships_killed_value, ai2_ships_killed_value);
         values.push_back(TUI_ValueStats_UUF_New("Ships killed", STATS_PERCENT,
             game.ai1.ships_killed, game.ships_placed + ai1_duplicates, ai1_ships_killed_value,
-            game.ai2.ships_killed, game.ai2.misses + ai2_duplicates, ai2_ships_killed_value));
+            game.ai2.ships_killed, game.ships_placed + ai2_duplicates, ai2_ships_killed_value));
 
         float ai1_ship_cells_hit_value = (float)game.ai1.hits / (float)game.ship_cells;
         float ai2_ship_cells_hit_value = (float)game.ai2.hits / (float)game.ship_cells;
