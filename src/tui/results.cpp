@@ -583,13 +583,27 @@ TUI_Text TUI_Text_From_Percent(float percent)
 
 TUI_Text TUI_Text_From_Ratio(float ratio)
 {
-    if (isinf(ratio)) // NOTE(mattg): infinity is hit when there is a 0 in the denominator
+    // NOTE(mattg): infinity is hit when there is a 0 in the denominator.
+    // Which, in our current case the 0 means 0 missed shots, so it's a perfect game.
+    if (isinf(ratio))
     {
         return TUI_Text_Default("Perfect");
     }
     stringstream strm = {};
-    strm << fixed << setprecision(2) << ratio << ":1";
-    return TUI_Text_Default(strm.str());
+    strm << fixed << setprecision(2) << ratio;
+    string result = strm.str();
+
+    while (result.back() == '0')
+    {
+        result.pop_back();
+    }
+    if (result.back() == '.')
+    {
+        result.pop_back();
+    }
+    result += ":1";
+
+    return TUI_Text_Default(result);
 }
 
 TUI_AIStringStats TUI_AIStringStats_From_AIValueStats(TUI_StatsType type, TUI_AIValueStats values)
