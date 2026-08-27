@@ -16,8 +16,8 @@
 
 BSHIP_DEFINE_ARRAY_ASSERT(BShip_EventArray)
 BSHIP_DEFINE_ARRAY_ASSERT(BShip_U32Array)
-BSHIP_DEFINE_ARRAY_ASSERT(BShip_GameStatsArray)
-BSHIP_DEFINE_ARRAY_PUSH(BShip_GameStatsArray, BShip_GameStats)
+BSHIP_DEFINE_ARRAY_ASSERT(BShip_GameBaseStatsArray)
+BSHIP_DEFINE_ARRAY_PUSH(BShip_GameBaseStatsArray, BShip_GameBaseStats)
 
 BShip_CompactShip BShip_CompactShip_From_Ship(BShip_Ship ship)
 {
@@ -542,7 +542,8 @@ on_conn_create_error:
     return match;
 }
 
-void BShip_AIStats_From_ShotValue(BShip_AIMatchStats *match, BShip_AIGameStats *game, BShip_BoardValue value)
+void BShip_AIBaseStats_From_ShotValue(
+    BShip_AIMatchBaseStats *match, BShip_AIGameBaseStats *game, BShip_BoardValue value)
 {
     switch (value)
     {
@@ -574,12 +575,12 @@ void BShip_AIStats_From_ShotValue(BShip_AIMatchStats *match, BShip_AIGameStats *
     }
 }
 
-BShip_MatchStats BShip_MatchStats_Get(BShip_Arena *arena, BShip_MatchData match)
+BShip_MatchBaseStats BShip_MatchBaseStats_Get(BShip_Arena *arena, BShip_MatchData match)
 {
     assert(arena != NULL);
-    BShip_MatchStats stats = {
+    BShip_MatchBaseStats stats = {
         .game_stats = {
-            .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_GameStats, match.game_indexes.length),
+            .buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_GameBaseStats, match.game_indexes.length),
             .capacity = match.game_indexes.length,
         },
     };
@@ -588,7 +589,7 @@ BShip_MatchStats BShip_MatchStats_Get(BShip_Arena *arena, BShip_MatchData match)
         return stats;
     }
 
-    BShip_GameStats game = {0};
+    BShip_GameBaseStats game = {0};
     for (size_t i = 0; i < match.events.length; i++)
     {
         BShip_Event event = match.events.buffer[i];
@@ -610,8 +611,8 @@ BShip_MatchStats BShip_MatchStats_Get(BShip_Arena *arena, BShip_MatchData match)
         {
             BShip_Shot ai1_shot = BShip_Shot_From_CompactShot(event.value.compact.ai1_shot);
             BShip_Shot ai2_shot = BShip_Shot_From_CompactShot(event.value.compact.ai2_shot);
-            BShip_AIStats_From_ShotValue(&stats.ai1, &game.ai1, ai1_shot.value);
-            BShip_AIStats_From_ShotValue(&stats.ai2, &game.ai2, ai2_shot.value);
+            BShip_AIBaseStats_From_ShotValue(&stats.ai1, &game.ai1, ai1_shot.value);
+            BShip_AIBaseStats_From_ShotValue(&stats.ai2, &game.ai2, ai2_shot.value);
             if (event.value.compact.ai1_ship > 0)
             {
                 game.ai2.ships_killed++;
@@ -637,7 +638,7 @@ BShip_MatchStats BShip_MatchStats_Get(BShip_Arena *arena, BShip_MatchData match)
                 stats.ai1_ties++;
                 break;
             }
-            BShip_GameStatsArray_Push(&stats.game_stats, game);
+            BShip_GameBaseStatsArray_Push(&stats.game_stats, game);
             break;
         }
     }

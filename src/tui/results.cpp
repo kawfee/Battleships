@@ -640,7 +640,7 @@ TUI_AIStringStats TUI_AIStringStats_From_AIValueStats(TUI_StatsType type, TUI_AI
     return strings;
 }
 
-TUI_MatchStats TUI_MatchStats_From_BShip_MatchStats(BShip_MatchStats match, uint8_t board_size)
+TUI_MatchStats TUI_MatchStats_From_BShip_MatchBaseStats(BShip_MatchBaseStats match, uint8_t board_size)
 {
     // math
     uint32_t num_games = match.ai1_wins + match.ai1_losses + match.ai1_ties;
@@ -700,7 +700,7 @@ TUI_MatchStats TUI_MatchStats_From_BShip_MatchStats(BShip_MatchStats match, uint
     vector<vector<TUI_ValueStats>> games_vs;
     for (size_t i = 0; i < match.game_stats.length; i++)
     {
-        BShip_GameStats game = match.game_stats.buffer[i];
+        BShip_GameBaseStats game = match.game_stats.buffer[i];
         uint8_t ai1_duplicates = game.ai1.duplicate_hits + game.ai1.duplicate_misses + game.ai1.duplicate_kills;
         uint8_t ai2_duplicates = game.ai2.duplicate_hits + game.ai2.duplicate_misses + game.ai2.duplicate_kills;
         uint8_t shots = game.ai1.hits + game.ai1.misses + ai1_duplicates;
@@ -1253,8 +1253,8 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
     BShip_Arena arena = {};
     BShip_Arena_Initialize(&arena, 0);
 
-    BShip_MatchStats match_stats = BShip_MatchStats_Get(&arena, match);
-    TUI_MatchStats stats = TUI_MatchStats_From_BShip_MatchStats(match_stats, match.board_size);
+    BShip_MatchBaseStats match_stats = BShip_MatchBaseStats_Get(&arena, match);
+    TUI_MatchStats stats = TUI_MatchStats_From_BShip_MatchBaseStats(match_stats, match.board_size);
 
     BShip_Board ai1_board = BShip_Board_Allocate(&arena, match.board_size);
     BShip_Board ai2_board = BShip_Board_Allocate(&arena, match.board_size);

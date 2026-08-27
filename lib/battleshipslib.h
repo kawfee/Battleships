@@ -255,21 +255,21 @@ typedef struct {
     uint8_t duplicate_misses;
     uint8_t duplicate_kills;
     uint8_t ships_killed;
-} BShip_AIGameStats;
+} BShip_AIGameBaseStats;
 
 typedef struct {
-    BShip_AIGameStats ai1;
-    BShip_AIGameStats ai2;
+    BShip_AIGameBaseStats ai1;
+    BShip_AIGameBaseStats ai2;
     uint8_t ships_placed;
     uint8_t ship_cells;
     BShip_GameResult ai1_game_result;
-} BShip_GameStats;
+} BShip_GameBaseStats;
 
 typedef struct {
-    BShip_GameStats *buffer;
+    BShip_GameBaseStats *buffer;
     uint32_t length;
     uint32_t capacity;
-} BShip_GameStatsArray;
+} BShip_GameBaseStatsArray;
 
 typedef struct {
     uint32_t hits;
@@ -278,18 +278,18 @@ typedef struct {
     uint32_t duplicate_misses;
     uint32_t duplicate_kills;
     uint32_t ships_killed;
-} BShip_AIMatchStats;
+} BShip_AIMatchBaseStats;
 
 typedef struct {
-    BShip_GameStatsArray game_stats;
-    BShip_AIMatchStats ai1;
-    BShip_AIMatchStats ai2;
+    BShip_GameBaseStatsArray game_stats;
+    BShip_AIMatchBaseStats ai1;
+    BShip_AIMatchBaseStats ai2;
     uint32_t ships_placed;
     uint32_t ship_cells;
     uint32_t ai1_wins;
     uint32_t ai1_losses;
     uint32_t ai1_ties;
-} BShip_MatchStats;
+} BShip_MatchBaseStats;
 
 typedef struct {
     char *file_name;
@@ -338,7 +338,7 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
     uint8_t board_size, uint32_t games_per_match, bool debug);
 
-BShip_MatchStats BShip_MatchStats_Get(BShip_Arena *arena, BShip_MatchData match);
+BShip_MatchBaseStats BShip_MatchBaseStats_Get(BShip_Arena *arena, BShip_MatchData match);
 
 void BShip_Match_Log_Store(BShip_MatchData match, char *path);
 
