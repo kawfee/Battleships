@@ -13,6 +13,18 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#if defined(__has_feature)
+# if __has_feature(address_sanitizer)
+#  define BSHIP_ASAN_ENABLED 1
+# endif
+#endif
+#if defined(__SANITIZE_ADDRESS__)
+# define BSHIP_ASAN_ENABLED 1
+#endif
+#ifndef BSHIP_ASAN_ENABLED
+# define BSHIP_ASAN_ENABLED 0
+#endif
+
 #define BSHIP_ARENA_BLOCK_SIZE_DEFAULT 4096
 #define BSHIP_BOARD_SIZE_MIN 5
 #define BSHIP_BOARD_SIZE_MAX 15

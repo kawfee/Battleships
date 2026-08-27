@@ -10,6 +10,20 @@
 
 #include "platforms/platform.h"
 
+#if BSHIP_ASAN_ENABLED
+# include <sanitizer/asan_interface.h>
+
+# define BSHIP_ARENA_ASAN_BUFFER_SIZE 16
+# define BSHIP_ARENA_ASAN_POISON(ptr, size) \
+    ASAN_POISON_MEMORY_REGION((ptr), (size))
+# define BSHIP_ARENA_ASAN_UNPOISON(ptr, size) \
+    ASAN_UNPOISON_MEMORY_REGION((ptr), (size))
+#else
+# define BSHIP_ARENA_ASAN_BUFFER_SIZE 0
+# define BSHIP_ARENA_ASAN_POISON(ptr, size)
+# define BSHIP_ARENA_ASAN_UNPOISON(ptr, size)
+#endif
+
 
 #define BSHIP_ARENA_PUSH(arena, type) \
     ((type *)BShip_Arena_Push(arena, sizeof(type)))
@@ -30,7 +44,6 @@ static inline void *BShip_Arena_AlignForward(void *address)
 
 static inline BShip_ArenaBlock *BShip_ArenaBlock_Allocate(size_t size)
 {
-    // printf("allocation size %ld\n", size);
     BShip_ArenaBlock *block = BShip_Allocate(size);
     if (block == NULL)
     {
@@ -39,6 +52,7 @@ static inline BShip_ArenaBlock *BShip_ArenaBlock_Allocate(size_t size)
     block->previous = NULL;
     block->capacity = size - sizeof(BShip_ArenaBlock);
     block->offset = 0;
+    BSHIP_ARENA_ASAN_POISON(block->memory, block->capacity);
     return block;
 }
 
@@ -82,19 +96,15 @@ void *BShip_Arena_Push(BShip_Arena *arena, size_t size)
         return NULL;
     }
 
-    // printf("size %ld\n", size);
-    void *memory = &arena->current->memory[arena->current->offset];
-    // printf("memory %p\n", memory);
+    size_t offset = arena->current->offset + BSHIP_ARENA_ASAN_BUFFER_SIZE;
+    void *memory = &arena->current->memory[offset];
     void *aligned = BShip_Arena_AlignForward(memory);
-    // printf("aligned %p\n", aligned);
-    // printf("offset %ld\n", arena->current->offset);
     size_t alignment_offset = (size_t)((uint64_t)aligned - (uint64_t)memory);
-    // printf("alignment_offset %ld\n", alignment_offset);
-    size_t space = arena->current->capacity - (alignment_offset + arena->current->offset);
-    // printf("space %ld\n", space);
+    size_t space = arena->current->capacity - (offset + alignment_offset);
     if (space >= size)
     {
-        arena->current->offset += alignment_offset + size;
+        arena->current->offset += BSHIP_ARENA_ASAN_BUFFER_SIZE + alignment_offset + size;
+        BSHIP_ARENA_ASAN_UNPOISON(aligned, size);
         return aligned;
     }
     size_t new_block_capacity = arena->current->capacity * 2;
@@ -108,9 +118,14 @@ void *BShip_Arena_Push(BShip_Arena *arena, size_t size)
         return block;
     }
     block->previous = arena->current;
-    block->offset += size;
+    block->offset += BSHIP_ARENA_ASAN_BUFFER_SIZE;
+    memory = &block->memory[block->offset];
+    aligned = BShip_Arena_AlignForward(memory);
+    block->offset += (size_t)((uint64_t)aligned - (uint64_t)memory) + size;
+    BSHIP_ARENA_ASAN_UNPOISON(aligned, size);
+    assert(__asan_address_is_poisoned(aligned) == 0);
     arena->current = block;
-    return block->memory;
+    return aligned;
 }
 
 void BShip_Arena_Reset(BShip_Arena *arena)
@@ -124,7 +139,8 @@ void BShip_Arena_Reset(BShip_Arena *arena)
         block = next;
     }
     arena->current = arena->first;
-    arena->first->offset = 0;
+    arena->current->offset = 0;
+    BSHIP_ARENA_ASAN_POISON(arena->current->memory, arena->current->capacity);
 }
 
 BShip_ArenaMark BShip_ArenaMark_Get(BShip_Arena *arena)
@@ -151,6 +167,9 @@ void BShip_Arena_Rollback(BShip_Arena *arena, BShip_ArenaMark mark)
     }
     block->offset = mark.offset;
     arena->current = block;
+    size_t leftover = arena->current->capacity - arena->current->offset;
+    (void)leftover;
+    BSHIP_ARENA_ASAN_POISON(&arena->current->memory[arena->current->offset], leftover);
 }
 
 #endif // ARENA_C

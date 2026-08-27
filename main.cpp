@@ -65,7 +65,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
             }
             if (errno != ERANGE)
             {
-                perror("getcwd");
+                PRINT_ERROR("Cannot get the current directory");
                 return ais;
             }
 
@@ -79,12 +79,11 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
     DIR *ai_dir_ref = opendir(ai_dir_string.c_str());
     if (ai_dir_ref == NULL)
     {
-        perror("opendir");
-        return ais;
+        PRINT_ERROR_F("Cannot open directory %s", ai_dir_string.c_str());
     }
-    struct dirent *ai_dir_entry = NULL;
 
-    while ((ai_dir_entry = readdir(ai_dir_ref)) != NULL)
+    struct dirent *ai_dir_entry = NULL;
+    while (ai_dir_ref != NULL && (ai_dir_entry = readdir(ai_dir_ref)) != NULL)
     {
         // Skip "." and ".."
         if (strncmp(ai_dir_entry->d_name, ".", 1) == 0 ||
@@ -97,7 +96,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
             struct stat st = {};
             if (stat(player_dir_string.c_str(), &st) == -1)
             {
-                perror("perror");
+                PRINT_ERROR_F("Cannot stat directory %s", player_dir_string.c_str());
                 continue;
             }
 
@@ -110,7 +109,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
         DIR *player_dir_ref = opendir(player_dir_string.c_str());
         if (player_dir_ref == NULL)
         {
-            perror("opendir");
+            PRINT_ERROR_F("Cannot open directory %s", player_dir_string.c_str());
             continue;
         }
         struct dirent *player_dir_entry = NULL;
@@ -128,7 +127,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
                 struct stat st = {};
                 if (stat(player_exec_string.c_str(), &st) == -1)
                 {
-                    perror("perror");
+                    PRINT_ERROR_F("Cannot stat file %s", player_exec_string.c_str());
                     continue;
                 }
                 if (!S_ISREG(st.st_mode) || !(st.st_mode & S_IXUSR))
@@ -169,22 +168,33 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
             ais.push_back(player);
             break;
         }
-        closedir(player_dir_ref);
+        if (player_dir_ref != NULL) closedir(player_dir_ref);
     }
-    closedir(ai_dir_ref);
+    if (ai_dir_ref != NULL) closedir(ai_dir_ref);
 
     sort(ais.begin(), ais.end(),
         [](const BShip_AIFileData& a, const BShip_AIFileData& b) {
             return strcasecmp(a.file_name, b.file_name) < 0;
         });
-
+    if (ais.size() == 0)
+    {
+        printf("No AI executables found at %s\n", ai_dir_string.c_str());
+        printf("Ensure that you follow all of these steps:\n");
+        printf("  - Run this executable at the project root (./battleships)\n");
+        printf("  - If you use a compiled language:\n");
+        printf("      - Have compiled the Player classes (cd ai/ && ./build.sh && cd ..)\n");
+        printf("      - Have compiled your AI (cd ai/your_ai_folder && make && cd ../..)\n");
+        printf("  - If you use an interpreted language:\n");
+        printf("      - Ensure the proper shebang is at the top of the main file (e.g. #!/usr/bin/python)\n");
+        printf("      - Ensure the main file has the correct executable permissions (chmod 755 your_ai.py)\n");
+    }
     return ais;
 }
 
 int main(void)
 {
     char *log_file_path = (char *)"./logs/new_match_log.json";
-    bool debug = true;
+    bool debug = (bool)BSHIP_ASAN_ENABLED;
     BShip_Arena string_arena = {};
     BShip_Arena_Initialize(&string_arena, 0); // 0 creates default size.
     vector<BShip_AIFileData> ais = GetAIs(&string_arena);
