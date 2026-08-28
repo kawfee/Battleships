@@ -58,13 +58,6 @@ void array_type##_Push(array_type *array, element_type element) \
     array->length++; \
 }
 
-#define BSHIP_DEFINE_ARRAY_ASSERT(array_type) \
-void array_type##_Assert(array_type array) \
-{ \
-    assert(array.capacity > 0 ? array.buffer != NULL : array.buffer == NULL); \
-    assert(array.length <= array.capacity); \
-}
-
 typedef enum {
     BSHIP_PLAYER_1 = 1,
     BSHIP_PLAYER_2 = 2,
@@ -255,21 +248,21 @@ typedef struct {
     uint8_t duplicate_misses;
     uint8_t duplicate_kills;
     uint8_t ships_killed;
-} BShip_AIGameBaseStats;
+} BShip_BaseAIGameStats;
 
 typedef struct {
-    BShip_AIGameBaseStats ai1;
-    BShip_AIGameBaseStats ai2;
+    BShip_BaseAIGameStats ai1;
+    BShip_BaseAIGameStats ai2;
     uint8_t ships_placed;
     uint8_t ship_cells;
     BShip_GameResult ai1_game_result;
-} BShip_GameBaseStats;
+} BShip_BaseGameStats;
 
 typedef struct {
-    BShip_GameBaseStats *buffer;
+    BShip_BaseGameStats *buffer;
     uint32_t length;
     uint32_t capacity;
-} BShip_GameBaseStatsArray;
+} BShip_BaseGameStatsArray;
 
 typedef struct {
     uint32_t hits;
@@ -278,18 +271,70 @@ typedef struct {
     uint32_t duplicate_misses;
     uint32_t duplicate_kills;
     uint32_t ships_killed;
-} BShip_AIMatchBaseStats;
+} BShip_BaseAIMatchStats;
 
 typedef struct {
-    BShip_GameBaseStatsArray game_stats;
-    BShip_AIMatchBaseStats ai1;
-    BShip_AIMatchBaseStats ai2;
+    BShip_BaseGameStatsArray game_stats;
+    BShip_BaseAIMatchStats ai1;
+    BShip_BaseAIMatchStats ai2;
     uint32_t ships_placed;
     uint32_t ship_cells;
     uint32_t ai1_wins;
     uint32_t ai1_losses;
     uint32_t ai1_ties;
-} BShip_MatchBaseStats;
+} BShip_BaseMatchStats;
+
+typedef struct {
+    uint32_t numerator;
+    uint32_t denominator;
+    float value;
+} BShip_DerivedGameStat;
+
+typedef struct {
+    BShip_DerivedGameStat result;
+    BShip_DerivedGameStat hit_rate;
+    BShip_DerivedGameStat duplicate_shots;
+    BShip_DerivedGameStat useful_shot_ratio;
+    BShip_DerivedGameStat amount_board_shot;
+    BShip_DerivedGameStat ships_killed;
+    BShip_DerivedGameStat ship_cells_hit;
+} BShip_DerivedAIGameStats;
+
+typedef struct {
+    BShip_DerivedAIGameStats ai1;
+    BShip_DerivedAIGameStats ai2;
+} BShip_DerivedGameStats;
+
+typedef struct {
+    BShip_DerivedGameStats *buffer;
+    uint32_t length;
+    uint32_t capacity;
+} BShip_DerivedGameStatsArray;
+
+typedef struct {
+    float min;
+    float max;
+    float avg;
+    float stddev;
+} BShip_DerivedMatchStat;
+
+typedef struct {
+    BShip_DerivedGameStat wins;
+    BShip_DerivedGameStat losses;
+    BShip_DerivedGameStat ties;
+    BShip_DerivedMatchStat hit_rate;
+    BShip_DerivedMatchStat duplicate_shots;
+    BShip_DerivedMatchStat useful_shot_ratio;
+    BShip_DerivedMatchStat amount_board_shot;
+    BShip_DerivedMatchStat ships_killed;
+    BShip_DerivedMatchStat ship_cells_hit;
+} BShip_DerivedAIMatchStats;
+
+typedef struct {
+    BShip_DerivedGameStatsArray game_stats;
+    BShip_DerivedAIMatchStats ai1;
+    BShip_DerivedAIMatchStats ai2;
+} BShip_DerivedMatchStats;
 
 typedef struct {
     char *file_name;
@@ -338,7 +383,11 @@ BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
     BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
     uint8_t board_size, uint32_t games_per_match, bool debug);
 
-BShip_MatchBaseStats BShip_MatchBaseStats_Get(BShip_Arena *arena, BShip_MatchData match);
+BShip_BaseMatchStats BShip_BaseMatchStats_Get(BShip_Arena *arena, BShip_MatchData match);
+BShip_DerivedMatchStats BShip_DerivedMatchStats_Get(BShip_Arena *arena, BShip_MatchData match,
+    bool exclude_game_stats);
+BShip_DerivedMatchStats BShip_DerivedMatchStats_From_BaseMatchStats(BShip_Arena *arena,
+    BShip_BaseMatchStats base_match_stats, uint8_t board_size, bool exclude_game_stats);
 
 void BShip_Match_Log_Store(BShip_MatchData match, char *path);
 
