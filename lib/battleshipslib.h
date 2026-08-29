@@ -322,6 +322,7 @@ typedef struct {
     BShip_DerivedGameStat wins;
     BShip_DerivedGameStat losses;
     BShip_DerivedGameStat ties;
+    BShip_DerivedGameStat perfect_games;
     BShip_DerivedMatchStat hit_rate;
     BShip_DerivedMatchStat duplicate_shots;
     BShip_DerivedMatchStat useful_shot_ratio;
