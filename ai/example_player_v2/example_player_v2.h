@@ -36,6 +36,10 @@ class ExamplePlayerV2: public PlayerV2 {
 
         void handle_match_over();
 
+        void load_settings_from_file();
+
+        void example_json();
+
     private:
 
         PlayerNum player;

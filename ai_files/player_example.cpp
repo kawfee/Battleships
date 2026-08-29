@@ -1,8 +1,8 @@
 /**
  * @file player_example.cpp
- * @author Matthew Getgen
+ * @author Matthew Getgen, Luke Staritz
  * @brief The starter file for making your own AI.
- * @date 2022-11-22
+ * @date 2026-05-21
  */
 
 #include "player_example.h"
@@ -10,6 +10,9 @@
 
 // Write your AI's name here. Please don't make it more than 64 bytes.
 #define AI_NAME "Player Example C++"
+
+// Defines the name of the bot's settings file.
+#define AI_SETTINGS_FILEPATH "./ai_files/player_example.json"
 
 // Write your name(s) or team name here. Please don't make it more than 64 bytes.
 #define AUTHOR_NAMES "Example Team/Author Name"
@@ -22,7 +25,7 @@ int main(int argc, char *argv[]) {
         return -1;
     }
     char *socket_path = argv[1];
-    
+
     // set random seed
     srand(getpid());
 
@@ -42,6 +45,8 @@ void PlayerExample::handle_setup_match(PlayerNum player, int board_size) {
     this->player = player;
     this->board_size = board_size;
     create_boards();
+    load_settings_from_file();
+    example_json();
     return;
 }
 
@@ -151,5 +156,75 @@ void PlayerExample::delete_boards() {
     delete[] this->ship_board;
     delete[] this->shot_board;
     return;
+}
+
+void PlayerExample::load_settings_from_file() {
+    std::ifstream file(AI_SETTINGS_FILEPATH);
+    if (!file.is_open()) {
+        std::cerr<<"Could not open JSON file! Check naming!";
+        return;
+    }
+        file >> data;
+    
+}
+
+/*
+================================================================================
+HOW TO RETRIEVE VALUES FROM THE LOADED JSON
+================================================================================
+
+Since the JSON structure may change dramatically between files, you should
+ALWAYS check for existence and type before accessing values.
+
+Common patterns:
+
+1. Check if a key exists:
+       if (data.contains("introText")) { ... }
+
+2. Check type before using:
+       if (data["printText"].is_boolean()) { ... }
+
+3. Retrieve safely with default values:
+       std::string s = data.value("introText", "default text");
+
+4. Access nested objects:
+       if (data.contains("subsection1") && data["subsection1"].is_object()) {
+           auto& sub = data["subsection1"];
+           double a = sub.value("variableA", 0.0);
+           int    b = sub.value("variableB", 0);
+       }
+
+5. Iterate through unknown structures:
+       for (auto& [key, value] : data.items()) {
+           std::cout << key << " -> " << value << "\n";
+       }
+
+These patterns allow you to handle JSON files whose structure may change
+without causing crashes.
+================================================================================
+*/
+void PlayerExample::example_json() {
+    std::cout << "\n=== Example JSON Access ===\n";
+
+    // introText
+    if (data.contains("introText") && data["introText"].is_string()) {
+        std::cout << "introText: " << data["introText"].get<std::string>();
+    }
+
+    // printText
+    if (data.contains("printText") && data["printText"].is_boolean()) {
+        std::cout << "printText: " << (data["printText"].get<bool>() ? "true" : "false") << "\n";
+    }
+
+    // subsection1
+    if (data.contains("subsection1") && data["subsection1"].is_object()) {
+        const auto& sub = data["subsection1"];
+
+        double variableA = sub.value("variableA", -1.0);
+        int    variableB = sub.value("variableB", -1);
+
+        std::cout << "subsection1.variableA: " << variableA << "\n";
+        std::cout << "subsection1.variableB: " << variableB << "\n";
+    }
 }
 
