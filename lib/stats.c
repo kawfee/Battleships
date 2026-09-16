@@ -148,10 +148,14 @@ BShip_DerivedGameStat BShip_DerivedGameStat_Calculate(uint32_t numerator, uint32
     return stat;
 }
 
-BShip_DerivedGameStat BShip_DerivedGameStat_CalcAndPush(BShip_F32Array *array, uint32_t numerator, uint32_t denominator, bool ratio)
+BShip_DerivedGameStat BShip_DerivedGameStat_CalcAndPush(BShip_F32Array *array, uint32_t numerator,
+    uint32_t denominator, bool ratio)
 {
     BShip_DerivedGameStat stat = BShip_DerivedGameStat_Calculate(numerator, denominator, ratio);
-    BShip_F32Array_Push(array, stat.value);
+    if (isinf(stat.value))
+    {
+        BShip_F32Array_Push(array, stat.value);
+    }
     return stat;
 }
 
@@ -208,11 +212,15 @@ void BShip_DerivedMatchStats_Calculate(BShip_Arena *arena, BShip_DerivedMatchSta
     BShip_F32Array ai1_ship_cells_hit_array = BShip_F32Array_Initialize(arena, num_games);
     BShip_F32Array ai2_ship_cells_hit_array = BShip_F32Array_Initialize(arena, num_games);
 
+    uint32_t ai1_num_perfect_games = 0;
+    uint32_t ai2_num_perfect_games = 0;
     for (size_t i = 0; i < base_match_stats.game_stats.length; i++)
     {
         BShip_BaseGameStats base_game_stats = base_match_stats.game_stats.buffer[i];
-        uint32_t ai1_duplicates = base_game_stats.ai1.duplicate_hits + base_game_stats.ai1.duplicate_misses + base_game_stats.ai1.duplicate_kills;
-        uint32_t ai2_duplicates = base_game_stats.ai2.duplicate_hits + base_game_stats.ai2.duplicate_misses + base_game_stats.ai2.duplicate_kills;
+        uint32_t ai1_duplicates = base_game_stats.ai1.duplicate_hits + base_game_stats.ai1.duplicate_misses
+            + base_game_stats.ai1.duplicate_kills;
+        uint32_t ai2_duplicates = base_game_stats.ai2.duplicate_hits + base_game_stats.ai2.duplicate_misses
+            + base_game_stats.ai2.duplicate_kills;
         uint32_t num_shots = base_game_stats.ai1.hits + base_game_stats.ai1.misses + ai1_duplicates;
         BShip_DerivedGameStats game_stats = {0};
         // result
@@ -232,33 +240,50 @@ void BShip_DerivedMatchStats_Calculate(BShip_Arena *arena, BShip_DerivedMatchSta
         game_stats.ai1.result.numerator = (uint32_t)base_game_stats.ai1_game_result;
         game_stats.ai2.result.numerator = (uint32_t)ai2_game_result;
         // hit rate
-        game_stats.ai1.hit_rate = BShip_DerivedGameStat_CalcAndPush(&ai1_hit_rate_array, base_game_stats.ai1.hits, num_shots, false);
-        game_stats.ai2.hit_rate = BShip_DerivedGameStat_CalcAndPush(&ai2_hit_rate_array, base_game_stats.ai2.hits, num_shots, false);
+        game_stats.ai1.hit_rate = BShip_DerivedGameStat_CalcAndPush(&ai1_hit_rate_array,
+            base_game_stats.ai1.hits, num_shots, false);
+        game_stats.ai2.hit_rate = BShip_DerivedGameStat_CalcAndPush(&ai2_hit_rate_array,
+            base_game_stats.ai2.hits, num_shots, false);
         // duplicate shots
-        game_stats.ai1.duplicate_shots = BShip_DerivedGameStat_CalcAndPush(&ai1_duplicate_shots_array, ai1_duplicates, num_shots, false);
-        game_stats.ai2.duplicate_shots = BShip_DerivedGameStat_CalcAndPush(&ai2_duplicate_shots_array, ai2_duplicates, num_shots, false);
+        game_stats.ai1.duplicate_shots = BShip_DerivedGameStat_CalcAndPush(&ai1_duplicate_shots_array,
+            ai1_duplicates, num_shots, false);
+        game_stats.ai2.duplicate_shots = BShip_DerivedGameStat_CalcAndPush(&ai2_duplicate_shots_array,
+            ai2_duplicates, num_shots, false);
         // useful shot ratio
         uint32_t ai1_useless_shots = base_game_stats.ai1.misses + ai1_duplicates;
         uint32_t ai2_useless_shots = base_game_stats.ai2.misses + ai2_duplicates;
-        game_stats.ai1.useful_shot_ratio = BShip_DerivedGameStat_CalcAndPush(&ai1_useful_shot_ratio_array, base_game_stats.ai1.hits, ai1_useless_shots, true);
-        game_stats.ai2.useful_shot_ratio = BShip_DerivedGameStat_CalcAndPush(&ai2_useful_shot_ratio_array, base_game_stats.ai2.hits, ai2_useless_shots, true);
+        game_stats.ai1.useful_shot_ratio = BShip_DerivedGameStat_CalcAndPush(&ai1_useful_shot_ratio_array,
+            base_game_stats.ai1.hits, ai1_useless_shots, true);
+        game_stats.ai2.useful_shot_ratio = BShip_DerivedGameStat_CalcAndPush(&ai2_useful_shot_ratio_array,
+            base_game_stats.ai2.hits, ai2_useless_shots, true);
+        ai1_num_perfect_games += (uint32_t)(!!isinf(game_stats.ai1.useful_shot_ratio.value));
+        ai2_num_perfect_games += (uint32_t)(!!isinf(game_stats.ai2.useful_shot_ratio.value));
         // amount board shot
         uint32_t ai1_unique_shots = base_game_stats.ai1.hits + base_game_stats.ai1.misses;
         uint32_t ai2_unique_shots = base_game_stats.ai2.hits + base_game_stats.ai2.misses;
-        game_stats.ai1.amount_board_shot = BShip_DerivedGameStat_CalcAndPush(&ai1_amount_board_shot_array, ai1_unique_shots, board_cells, false);
-        game_stats.ai2.amount_board_shot = BShip_DerivedGameStat_CalcAndPush(&ai2_amount_board_shot_array, ai2_unique_shots, board_cells, false);
+        game_stats.ai1.amount_board_shot = BShip_DerivedGameStat_CalcAndPush(&ai1_amount_board_shot_array,
+            ai1_unique_shots, board_cells, false);
+        game_stats.ai2.amount_board_shot = BShip_DerivedGameStat_CalcAndPush(&ai2_amount_board_shot_array,
+            ai2_unique_shots, board_cells, false);
         // ships killed
-        game_stats.ai1.ships_killed = BShip_DerivedGameStat_CalcAndPush(&ai1_ships_killed_array, base_game_stats.ai1.ships_killed, base_game_stats.ships_placed, false);
-        game_stats.ai2.ships_killed = BShip_DerivedGameStat_CalcAndPush(&ai2_ships_killed_array, base_game_stats.ai2.ships_killed, base_game_stats.ships_placed, false);
+        game_stats.ai1.ships_killed = BShip_DerivedGameStat_CalcAndPush(&ai1_ships_killed_array,
+            base_game_stats.ai1.ships_killed, base_game_stats.ships_placed, false);
+        game_stats.ai2.ships_killed = BShip_DerivedGameStat_CalcAndPush(&ai2_ships_killed_array,
+            base_game_stats.ai2.ships_killed, base_game_stats.ships_placed, false);
         // ship cells hit
-        game_stats.ai1.ship_cells_hit = BShip_DerivedGameStat_CalcAndPush(&ai1_ship_cells_hit_array, base_game_stats.ai1.hits, base_game_stats.ship_cells, false);
-        game_stats.ai2.ship_cells_hit = BShip_DerivedGameStat_CalcAndPush(&ai2_ship_cells_hit_array, base_game_stats.ai2.hits, base_game_stats.ship_cells, false);
+        game_stats.ai1.ship_cells_hit = BShip_DerivedGameStat_CalcAndPush(&ai1_ship_cells_hit_array,
+            base_game_stats.ai1.hits, base_game_stats.ship_cells, false);
+        game_stats.ai2.ship_cells_hit = BShip_DerivedGameStat_CalcAndPush(&ai2_ship_cells_hit_array,
+            base_game_stats.ai2.hits, base_game_stats.ship_cells, false);
         
         if (!exclude_game_stats)
         {
             BShip_DerivedGameStatsArray_Push(&stats->game_stats, game_stats);
         }
     }
+
+    stats->ai1.perfect_games = BShip_DerivedGameStat_Calculate(ai1_num_perfect_games, num_games, false);
+    stats->ai2.perfect_games = BShip_DerivedGameStat_Calculate(ai2_num_perfect_games, num_games, false);
     
     stats->ai1.hit_rate = BShip_DerivedMatchStat_Calculate(ai1_hit_rate_array);
     stats->ai2.hit_rate = BShip_DerivedMatchStat_Calculate(ai2_hit_rate_array);

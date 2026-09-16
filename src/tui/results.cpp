@@ -670,6 +670,13 @@ TUI_MatchStats TUI_MatchStats_From_BShip_DerivedMatchStats(BShip_DerivedMatchSta
             TUI_GameStat_From_BShip_DerivedGameStat(match_stats.ai1.ties, match_stats.ai2.ties, "Ties", STATS_PERCENT)
         );
     }
+    if (match_stats.ai1.perfect_games.numerator > 0 || match_stats.ai2.perfect_games.numerator > 0)
+    {
+        stats.result_stats.push_back(
+            TUI_GameStat_From_BShip_DerivedGameStat(match_stats.ai1.perfect_games, match_stats.ai2.perfect_games,
+                "Perfect games", STATS_PERCENT)
+        );
+    }
 
     TUI_MatchStat title_stat = {
         .key = TUI_Text_Default(""),
