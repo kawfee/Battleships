@@ -193,6 +193,7 @@ vector<BShip_AIFileData> GetAIs(BShip_Arena *arena)
 
 int main(void)
 {
+    char *socket_path = (char *)"/tmp/battleships.sock";
     char *log_file_path = (char *)"./logs/new_match_log.json";
     bool debug = (bool)BSHIP_ASAN_ENABLED;
     BShip_Arena string_arena = {};
@@ -208,17 +209,28 @@ int main(void)
 
     if (options.runtime == RUNTIME_MATCH)
     {
-        size_t match_memory_size = BShip_Match_CalculateMemorySize(options.board_size, options.games_per_match);
+        size_t match_memory_size = BShip_Match_CalculateMemorySize(options.board_size, options.game_count);
         BShip_Arena arena = {};
         BShip_Arena_Initialize(&arena, match_memory_size);
+        BShip_Connection *conn = BShip_Connection_Create(&arena, socket_path);
 
-        BShip_MatchData match = BShip_Match_Run(&arena, (char *)"/tmp/battleships.sock",
-            options.ai1, options.ai2, options.board_size, options.games_per_match, debug);
+        if (conn != NULL)
+        {
+            BShip_MatchData match = BShip_Match_Initialize(&arena, options.ai1, options.ai2,
+                options.board_size, options.game_count, debug);
+            BShip_Match_Start(&match, conn, socket_path);
+            while (BShip_Match_ShouldContinue(&match))
+            {
+                BShip_Match_Continue(&match);
+            }
+            BShip_Match_Stop(&match, &arena);
+            BShip_Connection_Destroy(conn);
 
-        BShip_Match_Log_Store(match, log_file_path);
+            BShip_Match_Log_Store(match, log_file_path);
 
-        TUI_Match_Display(match, options.match_display_type,
-            options.step_delay_ms, options.manual_stepping, debug);
+            TUI_Match_Display(match, options.match_display_type,
+                options.step_delay_ms, options.manual_stepping, debug);
+        }
 
         BShip_Arena_Destroy(&arena);
     }

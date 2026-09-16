@@ -328,10 +328,10 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
         if (!BShip_AIMatchData_Parse(arena, obj, &match->ai2)) goto on_error;
     }
 
-    uint32_t games_per_match_max = BShip_GamesPerMatchMax_From_BoardSize(match->board_size);
-    match->game_indexes.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint32_t, games_per_match_max);
+    uint32_t game_count_max = BShip_GameCountMax_From_BoardSize(match->board_size);
+    match->game_indexes.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint32_t, game_count_max);
     if (match->game_indexes.buffer == NULL) goto on_error;
-    match->game_indexes.capacity = games_per_match_max;
+    match->game_indexes.capacity = game_count_max;
 
     yyjson_val *events = yyjson_obj_get(root, EVENTS_KEY);
     if (!yyjson_is_arr(events)) goto on_error;

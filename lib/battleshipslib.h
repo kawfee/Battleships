@@ -232,12 +232,16 @@ typedef struct {
     uint32_t author_name_length;
 } BShip_AIMatchData;
 
+typedef struct BShip_MatchState BShip_MatchState;
+
 typedef struct {
+    BShip_MatchState *state;
+    BShip_Arena temp_arena;
     BShip_AIMatchData ai1;
     BShip_AIMatchData ai2;
     BShip_U32Array game_indexes;
     BShip_EventArray events;
-    uint32_t games_per_match;
+    uint32_t game_count;
     uint8_t board_size;
 } BShip_MatchData;
 
@@ -348,6 +352,8 @@ typedef enum {
     CONTEST_ROUND_ROBIN,
 } BShip_ContestAlgorithm;
 
+typedef struct BShip_Connection BShip_Connection;
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -370,19 +376,31 @@ BShip_CompactShot BShip_CompactShot_From_Shot(BShip_Shot shot);
 BShip_Shot BShip_Shot_From_CompactShot(BShip_CompactShot compact);
 
 // void BShip_Contest_Run(char *socket_path, char *ai_paths[], uint32_t ai_paths_length,
-//     uint8_t board_size, uint32_t games_per_match, BShip_ContestAlgorithm algorithm, bool debug);
+//     uint8_t board_size, uint32_t game_count, BShip_ContestAlgorithm algorithm, bool debug);
 
-uint32_t BShip_GamesPerMatchMin_From_BoardSize(uint8_t board_size);
+uint32_t BShip_GameCountMin_From_BoardSize(uint8_t board_size);
 
-uint32_t BShip_GamesPerMatchDefault_From_BoardSize(uint8_t board_size);
+uint32_t BShip_GameCountDefault_From_BoardSize(uint8_t board_size);
 
-uint32_t BShip_GamesPerMatchMax_From_BoardSize(uint8_t board_size);
+uint32_t BShip_GameCountMax_From_BoardSize(uint8_t board_size);
 
-size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t games_per_match);
+size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t game_count);
 
-BShip_MatchData BShip_Match_Run(BShip_Arena *arena, char *socket_path,
+BShip_Connection *BShip_Connection_Create(BShip_Arena *arena, char *socket_path);
+
+void BShip_Connection_Destroy(BShip_Connection *conn);
+
+bool BShip_Match_ShouldContinue(BShip_MatchData *match);
+
+BShip_MatchData BShip_Match_Initialize(BShip_Arena *arena,
     BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
-    uint8_t board_size, uint32_t games_per_match, bool debug);
+    uint8_t board_size, uint32_t game_count, bool debug);
+
+void BShip_Match_Start(BShip_MatchData *match, BShip_Connection *conn, char *socket_path);
+
+void BShip_Match_Continue(BShip_MatchData *match);
+
+void BShip_Match_Stop(BShip_MatchData *match, BShip_Arena *arena);
 
 BShip_BaseMatchStats BShip_BaseMatchStats_Get(BShip_Arena *arena, BShip_MatchData match);
 BShip_DerivedMatchStats BShip_DerivedMatchStats_Get(BShip_Arena *arena, BShip_MatchData match,

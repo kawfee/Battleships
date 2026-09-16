@@ -10,26 +10,49 @@
 
 #include "battleshipslib.h"
 
+bool BoardSize_Valid(uint8_t board_size)
+{
+    return board_size >= BSHIP_BOARD_SIZE_MIN && board_size <= BSHIP_BOARD_SIZE_MAX;
+}
+
+bool RowCol_Valid(uint8_t row, uint8_t column, uint8_t board_size)
+{
+    assert(BoardSize_Valid(board_size));
+    if (row >= board_size) return false;
+    if (column >= board_size) return false;
+    return true;
+}
+
+bool GameCount_Valid(uint32_t game_count, uint8_t board_size)
+{
+    assert(BoardSize_Valid(board_size));
+    return (
+        game_count >= BShip_GameCountMin_From_BoardSize(board_size) &&
+        game_count <= BShip_GameCountMax_From_BoardSize(board_size)
+    );
+}
+
 uint8_t ShipCountMin_From_BoardSize(uint8_t board_size)
 {
-    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
-    uint8_t ship_count_min = (uint8_t)((2.0f * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN);
+    assert(BoardSize_Valid(board_size));
+    uint8_t ship_count_min = (uint8_t)(
+        (2.0f * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN
+    );
     return ship_count_min;
 }
 
 uint8_t ShipCountMax_From_BoardSize(uint8_t board_size)
 {
-    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
-    uint8_t ship_count_max = (uint8_t)((M_PI * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN);
+    assert(BoardSize_Valid(board_size));
+    uint8_t ship_count_max = (uint8_t)(
+        (M_PI * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN
+    );
     return ship_count_max;
 }
 
 uint8_t ShipLengthMin_From_BoardSize(uint8_t board_size)
 {
-    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
+    assert(BoardSize_Valid(board_size));
     uint8_t ship_length_min = (uint8_t)(
         (M_PI_2 * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN
     );
@@ -38,57 +61,50 @@ uint8_t ShipLengthMin_From_BoardSize(uint8_t board_size)
 
 uint8_t ShipLengthMax_From_BoardSize(uint8_t board_size)
 {
-    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
+    assert(BoardSize_Valid(board_size));
     uint8_t ship_length_max = (uint8_t)(
         (powf((M_PI / M_E), 2.0f) * logf((float)board_size - 4.0f)) + (float)BSHIP_SHIP_COUNT_MIN
     );
     return ship_length_max;
 }
 
-uint32_t BShip_GamesPerMatchMin_From_BoardSize(uint8_t board_size)
+uint32_t BShip_GameCountMin_From_BoardSize(uint8_t board_size)
 {
     (void)board_size;
     return 1;
 }
 
-uint32_t BShip_GamesPerMatchDefault_From_BoardSize(uint8_t board_size)
+uint32_t BShip_GameCountDefault_From_BoardSize(uint8_t board_size)
 {
-    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
-    uint32_t games_per_match = (uint32_t)(
+    assert(BoardSize_Valid(board_size));
+    uint32_t game_count = (uint32_t)(
         5.0f * powf((float)board_size, 2.0f)
     );
 
     uint8_t multiple = 100; // set this to 10 if we want rounding up to 10's place.
-    uint32_t games_per_match_rounded = ((games_per_match + multiple - 1) / multiple) * multiple;
-    return games_per_match_rounded;
+    return ((game_count + multiple - 1) / multiple) * multiple;
 }
 
-uint32_t BShip_GamesPerMatchMax_From_BoardSize(uint8_t board_size)
+uint32_t BShip_GameCountMax_From_BoardSize(uint8_t board_size)
 {
-    return BShip_GamesPerMatchDefault_From_BoardSize(board_size) * 2;
+    return BShip_GameCountDefault_From_BoardSize(board_size) * 2;
 }
 
 BShip_BoardValue BShip_Board_Get(BShip_Board board, uint8_t row, uint8_t column)
 {
     assert(board.buffer != NULL);
-    assert(board.size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board.size <= BSHIP_BOARD_SIZE_MAX);
-    assert(row < board.size);
-    assert(column < board.size);
-    uint32_t index = (row * board.size) + column;
+    assert(BoardSize_Valid(board.size));
+    assert(RowCol_Valid(row, column, board.size));
+    uint8_t index = (row * board.size) + column;
     return (BShip_BoardValue)board.buffer[index];
 }
 
 void BShip_Board_Set(BShip_Board board, uint8_t row, uint8_t column, BShip_BoardValue value)
 {
     assert(board.buffer != NULL);
-    assert(board.size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board.size <= BSHIP_BOARD_SIZE_MAX);
-    assert(row < board.size);
-    assert(column < board.size);
-    uint32_t index = (row * board.size) + column;
+    assert(BoardSize_Valid(board.size));
+    assert(RowCol_Valid(row, column, board.size));
+    uint8_t index = (row * board.size) + column;
     board.buffer[index] = value;
 }
 
@@ -96,8 +112,7 @@ void ShipLengths_Calculate(BShip_U8Array *array, uint8_t board_size)
 {
     assert(array != NULL);
     assert(array->buffer != NULL);
-    assert(board_size >= BSHIP_BOARD_SIZE_MIN);
-    assert(board_size <= BSHIP_BOARD_SIZE_MAX);
+    assert(BoardSize_Valid(board_size));
     uint8_t ship_count_min = ShipCountMin_From_BoardSize(board_size);
     uint8_t ship_count_max = ShipCountMax_From_BoardSize(board_size);
     uint8_t ship_length_min = ShipLengthMin_From_BoardSize(board_size);

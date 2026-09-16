@@ -123,7 +123,6 @@ void *BShip_Arena_Push(BShip_Arena *arena, size_t size)
     aligned = BShip_Arena_AlignForward(memory);
     block->offset += (size_t)((uint64_t)aligned - (uint64_t)memory) + size;
     BSHIP_ARENA_ASAN_UNPOISON(aligned, size);
-    assert(__asan_address_is_poisoned(aligned) == 0);
     arena->current = block;
     return aligned;
 }

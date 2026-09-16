@@ -23,7 +23,7 @@ typedef enum {
 typedef struct {
     TUI_RuntimeType runtime;
     uint8_t board_size;
-    uint32_t games_per_match;
+    uint32_t game_count;
     BShip_AIFileData ai1;
     BShip_AIFileData ai2;
     TUI_MatchDisplayType match_display_type;
@@ -34,7 +34,7 @@ typedef struct {
 typedef struct {
     optional<TUI_RuntimeType> runtime;
     optional<uint8_t> board_size;
-    optional<uint32_t> games_per_match;
+    optional<uint32_t> game_count;
     optional<BShip_AIFileData> ai1;
     optional<BShip_AIFileData> ai2;
     optional<TUI_MatchDisplayType> match_display_type;
@@ -42,11 +42,11 @@ typedef struct {
     optional<bool> manual_stepping;
     size_t runtime_selection;
     size_t board_size_selection;
-    size_t games_per_match_selection;
-    size_t games_per_match_min;
-    size_t games_per_match_max;
-    string games_per_match_string;
-    bool games_per_match_invalid;
+    size_t game_count_selection;
+    size_t game_count_min;
+    size_t game_count_max;
+    string game_count_string;
+    bool game_count_invalid;
     size_t ai1_selection;
     size_t ai2_selection;
     size_t ai_window_top;
@@ -172,10 +172,10 @@ bool TUI_BoardSize_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Inpu
     case INPUT_ENTER:
         state->board_size = state->board_size_selection;
         options->board_size = state->board_size_selection;
-        state->games_per_match_selection = BShip_GamesPerMatchDefault_From_BoardSize(state->board_size_selection);
-        state->games_per_match_min = BShip_GamesPerMatchMin_From_BoardSize(state->board_size_selection);
-        state->games_per_match_max = BShip_GamesPerMatchMax_From_BoardSize(state->board_size_selection);
-        state->games_per_match_string = to_string(state->games_per_match_selection);
+        state->game_count_selection = BShip_GameCountDefault_From_BoardSize(state->board_size_selection);
+        state->game_count_min = BShip_GameCountMin_From_BoardSize(state->board_size_selection);
+        state->game_count_max = BShip_GameCountMax_From_BoardSize(state->board_size_selection);
+        state->game_count_string = to_string(state->game_count_selection);
         break;
     case INPUT_ESC:
         return true;
@@ -185,26 +185,26 @@ bool TUI_BoardSize_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Inpu
     return false;
 }
 
-void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
+void TUI_GameCount_Display(TUI_Window *window, TUI_OptionsState *state)
 {
-    if (state->games_per_match_selection < state->games_per_match_min)
+    if (state->game_count_selection < state->game_count_min)
     {
-        state->games_per_match_selection = state->games_per_match_min;
+        state->game_count_selection = state->game_count_min;
     }
-    else if (state->games_per_match_selection > state->games_per_match_max)
+    else if (state->game_count_selection > state->game_count_max)
     {
-        state->games_per_match_selection = state->games_per_match_max;
+        state->game_count_selection = state->game_count_max;
     }
     TUI_Text prompt = TUI_Text_Default("Games: ");
     TUI_TextGroup group = TUI_TextGroup_Default(prompt);
-    if (state->games_per_match.has_value())
+    if (state->game_count.has_value())
     {
-        string gpm = to_string(state->games_per_match.value());
+        string gpm = to_string(state->game_count.value());
         TUI_TextGroup_Add(&group, TUI_Text_New(gpm, { BOLD }, RESET, RESET));
         TUI_Window_Add(window, TUI_Line_Default(group));
         return;
     }
-    TUI_TextGroup_Add(&group, TUI_Text_Default(state->games_per_match_string));
+    TUI_TextGroup_Add(&group, TUI_Text_Default(state->game_count_string));
     TUI_TextGroup_Add(&group, TUI_Text_New(" ", { NEGATIVE_IMAGE }, RESET, RESET));
     TUI_Window_Add(window, TUI_Line_Default(group));
 
@@ -213,19 +213,19 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     try
     {
         size_t pos = 0;
-        size_t selection = stoi(state->games_per_match_string, &pos);
+        size_t selection = stoi(state->game_count_string, &pos);
 
-        if (pos != state->games_per_match_string.size())
+        if (pos != state->game_count_string.size())
         {
             invalid_number = true;
         }
-        if (selection < state->games_per_match_min || selection > state->games_per_match_max)
+        if (selection < state->game_count_min || selection > state->game_count_max)
         {
             invalid_range = true;
         }
         if (!invalid_number && !invalid_range)
         {
-            state->games_per_match_selection = selection;
+            state->game_count_selection = selection;
         }
     }
     catch (const std::invalid_argument&)
@@ -236,7 +236,7 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     {
         invalid_range = true;
     }
-    state->games_per_match_invalid = (invalid_number || invalid_range);
+    state->game_count_invalid = (invalid_number || invalid_range);
 
     if (invalid_number)
     {
@@ -247,7 +247,7 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     else if (invalid_range)
     {
         string range = "Out of Range: ";
-        range += to_string(state->games_per_match_min) + "-" + to_string(state->games_per_match_max);
+        range += to_string(state->game_count_min) + "-" + to_string(state->game_count_max);
         TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(
             TUI_Text_New(range, {}, RED, RESET)
         )));
@@ -256,9 +256,9 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("0-9      Edit"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Bksp     Delete"))));
-    Color enter_color = state->games_per_match_invalid ? GRAY : RESET;
+    Color enter_color = state->game_count_invalid ? GRAY : RESET;
     TUI_TextGroup enter_group = TUI_TextGroup_Default(TUI_Text_New("Enter    Select", {}, enter_color, RESET));
-    if (state->games_per_match_invalid)
+    if (state->game_count_invalid)
     {
         TUI_TextGroup_Add(&enter_group, TUI_Text_New(" (disabled)", { BOLD }, GRAY, RESET));
     }
@@ -266,21 +266,21 @@ void TUI_GamesPerMatch_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_GamesPerMatch_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+bool TUI_GameCount_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
 {
     switch (input.type)
     {
     case INPUT_NUM:
-        if (state->games_per_match_string.size() < 10) state->games_per_match_string.push_back(input.value);
+        if (state->game_count_string.size() < 10) state->game_count_string.push_back(input.value);
         break;
     case INPUT_BACKSPACE:
-        if (state->games_per_match_string.size() > 0) state->games_per_match_string.pop_back();
+        if (state->game_count_string.size() > 0) state->game_count_string.pop_back();
         break;
     case INPUT_ENTER:
-        if (!state->games_per_match_invalid)
+        if (!state->game_count_invalid)
         {
-            state->games_per_match = state->games_per_match_selection;
-            options->games_per_match = state->games_per_match_selection;
+            state->game_count = state->game_count_selection;
+            options->game_count = state->game_count_selection;
 
             state->ai1_selection = 0;
             state->ai2_selection = 0;
@@ -686,8 +686,8 @@ bool TUI_Options_Display(TUI_Window *window, TUI_OptionsState *state, const vect
         TUI_BoardSize_Display(window, state);
         if (!state->board_size.has_value()) return false;
 
-        TUI_GamesPerMatch_Display(window, state);
-        if (!state->games_per_match.has_value()) return false;
+        TUI_GameCount_Display(window, state);
+        if (!state->game_count.has_value()) return false;
     }
 
     if (runtime == RUNTIME_MATCH)
@@ -734,9 +734,9 @@ bool TUI_Options_Input(TUI_Input input, TUI_OptionsState *state, TUI_Options *op
             return TUI_BoardSize_Input(state, options, input);
         }
         
-        if (!state->games_per_match.has_value())
+        if (!state->game_count.has_value())
         {
-            return TUI_GamesPerMatch_Input(state, options, input);
+            return TUI_GameCount_Input(state, options, input);
         }
     }
 
@@ -804,7 +804,7 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
     TUI_OptionsState state = {
         .runtime = {},
         .board_size = {},
-        .games_per_match = {},
+        .game_count = {},
         .ai1 = {},
         .ai2 = {},
         .match_display_type = {},
@@ -813,11 +813,11 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
         // defaults
         .runtime_selection = 0,
         .board_size_selection = 10,
-        .games_per_match_selection = 0,
-        .games_per_match_min = 0,
-        .games_per_match_max = 0,
-        .games_per_match_string = "",
-        .games_per_match_invalid = false,
+        .game_count_selection = 0,
+        .game_count_min = 0,
+        .game_count_max = 0,
+        .game_count_string = "",
+        .game_count_invalid = false,
         .ai1_selection = 0,
         .ai2_selection = 0,
         .ai_window_top = 0,

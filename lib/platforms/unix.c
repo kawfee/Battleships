@@ -26,8 +26,13 @@
 
 #include "platform.h"
 
-#define BSHIP_TIMEOUT_SECONDS 0
-#define BSHIP_TIMEOUT_MILLISECONDS 500
+#define BSHIP_TIMER_NANOSECONDS_IN_SECOND 1000000000
+#define BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND 1000000
+#define BSHIP_TIMER_MILLISECONDS_IN_SECOND 1000
+
+struct BShip_Timer {
+    struct timespec t;
+};
 
 struct BShip_Connection {
     struct sockaddr_un socket_address;
@@ -155,6 +160,107 @@ on_error:
     return false;
 }
 
+size_t BShip_Timer_GetSize(void)
+{
+    return (size_t)sizeof(BShip_Timer);
+}
+
+bool BShip_Timer_Now(BShip_Timer *timer)
+{
+    assert(timer != NULL);
+    if (clock_gettime(CLOCK_MONOTONIC, &timer->t) == -1)
+    {
+        memset(timer, 0, BShip_Timer_GetSize());
+        PRINT_ERROR(strerror(errno));
+        return false;
+    }
+    return true;
+}
+
+int BShip_Timer_Compare(BShip_Timer *a, BShip_Timer *b)
+{
+    assert(a != NULL);
+    assert(b != NULL);
+    if (a->t.tv_sec == b->t.tv_sec)
+    {
+        if (a->t.tv_nsec == b->t.tv_nsec)
+        {
+            return 0;
+        }
+        else if (a->t.tv_nsec < b->t.tv_nsec)
+        {
+            return -1;
+        }
+        else
+        {
+            return 1;
+        }
+    }
+    else if (a->t.tv_sec < b->t.tv_sec)
+    {
+        return -1;
+    }
+    return 1;
+}
+
+uint64_t BShip_Timer_Milliseconds_Until(BShip_Timer *timer)
+{
+    BShip_Timer now = {0};
+    if (!BShip_Timer_Now(&now))
+    {
+        return 0;
+    }
+    uint64_t now_ms = (uint64_t)now.t.tv_sec * BSHIP_TIMER_MILLISECONDS_IN_SECOND + (
+        now.t.tv_nsec / BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND
+    );
+    uint64_t timer_ms = (uint64_t)timer->t.tv_sec * BSHIP_TIMER_MILLISECONDS_IN_SECOND + (
+        timer->t.tv_nsec / BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND
+    );
+    if (now_ms >= timer_ms)
+    {
+        return 0;
+    }
+    return timer_ms - now_ms;
+}
+
+void BShip_Timer_Add_Nanoseconds(BShip_Timer *timer, uint64_t nsec)
+{
+    assert(timer != NULL);
+    time_t seconds = nsec / BSHIP_TIMER_NANOSECONDS_IN_SECOND;
+    long nanoseconds = nsec % BSHIP_TIMER_NANOSECONDS_IN_SECOND;
+    timer->t.tv_sec += seconds;
+    timer->t.tv_nsec += nanoseconds;
+    if (timer->t.tv_nsec >= BSHIP_TIMER_NANOSECONDS_IN_SECOND)
+    {
+        timer->t.tv_sec++;
+        timer->t.tv_nsec -= BSHIP_TIMER_NANOSECONDS_IN_SECOND;
+    }
+}
+
+void BShip_Timer_Add_Milliseconds(BShip_Timer *timer, uint64_t msec)
+{
+    uint64_t nsec = msec * BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND;
+    BShip_Timer_Add_Nanoseconds(timer, nsec);
+}
+
+bool BShip_Timer_In_Nanoseconds(BShip_Timer *timer, uint64_t nsec)
+{
+    assert(timer != NULL);
+    if (!BShip_Timer_Now(timer))
+    {
+        return false;
+    }
+    BShip_Timer_Add_Nanoseconds(timer, nsec);
+    return true;
+}
+
+bool BShip_Timer_In_Milliseconds(BShip_Timer *timer, uint64_t msec)
+{
+    assert(timer != NULL);
+    uint64_t nsec = msec * BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND;
+    return BShip_Timer_In_Nanoseconds(timer, nsec);
+}
+
 size_t BShip_Connection_GetSize(void)
 {
     return (size_t)sizeof(BShip_Connection);
@@ -165,7 +271,7 @@ size_t BShip_AIConnection_GetSize(void)
     return (size_t)sizeof(BShip_AIConnection);
 }
 
-bool BShip_Connection_Create(BShip_Connection *conn, char *socket_path)
+bool BShip_Connection_Open(BShip_Connection *conn, char *socket_path)
 {
     assert(conn != NULL);
     assert(socket_path != NULL);
@@ -427,7 +533,8 @@ void BShip_AIConnection_KillProcess(BShip_AIConnection *ai_conn)
     ai_conn->process_id = 0;
 }
 
-BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Connection *conn, bool debug)
+BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Connection *conn,
+    BShip_Timer *deadline, bool debug)
 {
     assert(conn != NULL);
     assert(ai_conn != NULL);
@@ -439,11 +546,12 @@ BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Con
     
     if (!debug)
     {
+        uint64_t ms_until = BShip_Timer_Milliseconds_Until(deadline);
         struct pollfd pfd = {
             .fd = conn->socket_desc,
             .events = POLLIN,
         };
-        int rc = poll(&pfd, 1, BSHIP_TIMEOUT_MILLISECONDS);
+        int rc = poll(&pfd, 1, ms_until);
         switch (rc)
         {
         case -1:
@@ -485,18 +593,20 @@ BShip_ErrorType BShip_AIConnection_Accept(BShip_AIConnection *ai_conn, BShip_Con
     return ERROR_SUCCESS;
 }
 
-BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, BShip_Message message, bool debug)
+BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, BShip_Message message,
+    BShip_Timer *deadline, bool debug)
 {
     assert(ai_conn != NULL);
     assert(message.buffer != NULL);
     
     if (!debug)
     {
+        uint64_t ms_until = BShip_Timer_Milliseconds_Until(deadline);
         struct pollfd pfd = {
             .fd = ai_conn->socket_desc,
             .events = POLLOUT,
         };
-        int rc = poll(&pfd, 1, BSHIP_TIMEOUT_MILLISECONDS);
+        int rc = poll(&pfd, 1, ms_until);
         switch (rc)
         {
         case -1:
@@ -519,7 +629,8 @@ BShip_ErrorType BShip_AIConnection_Send(BShip_AIConnection *ai_conn, BShip_Messa
     return ERROR_SUCCESS;
 }
 
-BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, BShip_Message *message, bool debug)
+BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, BShip_Message *message,
+    BShip_Timer *deadline, bool debug)
 {
     assert(ai_conn != NULL);
     assert(message != NULL);
@@ -527,11 +638,12 @@ BShip_ErrorType BShip_AIConnection_Receive(BShip_AIConnection *ai_conn, BShip_Me
 
     if (!debug)
     {
+        uint64_t ms_until = BShip_Timer_Milliseconds_Until(deadline);
         struct pollfd pfd = {
             .fd = ai_conn->socket_desc,
             .events = POLLIN,
         };
-        int rc = poll(&pfd, 1, BSHIP_TIMEOUT_MILLISECONDS);
+        int rc = poll(&pfd, 1, ms_until);
         switch (rc)
         {
         case -1:

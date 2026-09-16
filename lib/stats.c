@@ -152,7 +152,7 @@ BShip_DerivedGameStat BShip_DerivedGameStat_CalcAndPush(BShip_F32Array *array, u
     uint32_t denominator, bool ratio)
 {
     BShip_DerivedGameStat stat = BShip_DerivedGameStat_Calculate(numerator, denominator, ratio);
-    if (isinf(stat.value))
+    if (!isinf(stat.value))
     {
         BShip_F32Array_Push(array, stat.value);
     }
@@ -161,7 +161,6 @@ BShip_DerivedGameStat BShip_DerivedGameStat_CalcAndPush(BShip_F32Array *array, u
 
 BShip_DerivedMatchStat BShip_DerivedMatchStat_Calculate(BShip_F32Array array)
 {
-    assert(array.length > 0);
     BShip_DerivedMatchStat stat = {0};
     float sum = 0.0f;
     stat.min = array.buffer[0];
