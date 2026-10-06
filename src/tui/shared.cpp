@@ -63,18 +63,30 @@ void TUI_Debug_Line_Add(TUI_Window *window, TUI_Input input)
     case INPUT_BACKSPACE:
         input_type = "BACKSPACE";
         break;
+    case INPUT_SPACE:
+        input_type = "SPACE";
+        break;
     case INPUT_ENTER:
         input_type = "ENTER";
+        break;
+    case INPUT_TAB:
+        input_type = "TAB";
         break;
     case INPUT_ESC:
         input_type = "ESC";
         break;
+    case INPUT_NUM:
+        input_type = "NUM[";
+        input_type += input.value;
+        input_type += "]";
+        break;
     case INPUT_PERIOD:
         input_type = "PERIOD";
         break;
-    case INPUT_NUM:
-        input_type = "NUM ";
+    case INPUT_TEXT:
+        input_type = "TEXT[";
         input_type += input.value;
+        input_type += "]";
         break;
     }
     TUI_TextGroup input_group = TUI_TextGroup_Default(TUI_Text_Default(input_type));

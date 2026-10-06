@@ -387,20 +387,25 @@ uint32_t BShip_GameCountMax_From_BoardSize(uint8_t board_size);
 size_t BShip_Match_CalculateMemorySize(uint8_t board_size, uint32_t game_count);
 
 BShip_Connection *BShip_Connection_Create(BShip_Arena *arena, char *socket_path);
-
 void BShip_Connection_Destroy(BShip_Connection *conn);
-
-bool BShip_Match_ShouldContinue(BShip_MatchData *match);
 
 BShip_MatchData BShip_Match_Initialize(BShip_Arena *arena,
     BShip_AIFileData ai1_file_data, BShip_AIFileData ai2_file_data,
     uint8_t board_size, uint32_t game_count, bool debug);
-
 void BShip_Match_Start(BShip_MatchData *match, BShip_Connection *conn, char *socket_path);
-
+bool BShip_Match_ShouldContinue(BShip_MatchData *match);
 void BShip_Match_Continue(BShip_MatchData *match);
-
 void BShip_Match_Stop(BShip_MatchData *match, BShip_Arena *arena);
+
+BShip_MatchData BShip_HumanGame_Initialize(BShip_Arena *arena, BShip_AIFileData ai2_file_data,
+    uint8_t board_size, bool debug);
+void BShip_HumanGame_Start(BShip_MatchData *match, BShip_Connection *conn, char *socket_path,
+    char *name, size_t name_length, char *authors, size_t authors_length);
+bool BShip_HumanGame_ShouldContinue(BShip_MatchData *match);
+BShip_U8Array BShip_HumanGame_GetShipLengths(BShip_MatchData *match);
+bool BShip_HumanGame_PlaceShips(BShip_MatchData *match, BShip_ShipArray ships);
+bool BShip_HumanGame_PlaceShot(BShip_MatchData *match, BShip_Shot shot);
+bool BShip_HumanGame_Stop(BShip_MatchData *match, BShip_Arena *arena);
 
 BShip_BaseMatchStats BShip_BaseMatchStats_Get(BShip_Arena *arena, BShip_MatchData match);
 BShip_DerivedMatchStats BShip_DerivedMatchStats_Get(BShip_Arena *arena, BShip_MatchData match,

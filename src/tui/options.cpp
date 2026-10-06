@@ -15,6 +15,7 @@
 typedef enum {
     RUNTIME_NONE,
     RUNTIME_MATCH,
+    RUNTIME_HUMAN_GAME,
     RUNTIME_CONTEST,
     RUNTIME_REPLAY_MATCH,
     RUNTIME_REPLAY_CONTEST,
@@ -59,12 +60,14 @@ typedef struct {
 
 const TUI_RuntimeType RuntimeTypeTable[] = {
     RUNTIME_MATCH,
+    RUNTIME_HUMAN_GAME,
     RUNTIME_CONTEST,
     RUNTIME_REPLAY_MATCH,
     RUNTIME_REPLAY_CONTEST,
 };
 const char* RuntimeStringTable[] = {
     "Test AI",
+    "Play against AI",
     "Run Contest",
     "Replay Test",
     "Replay Contest",
@@ -96,14 +99,15 @@ void TUI_RuntimeType_Display(TUI_Window *window, TUI_OptionsState *state)
         TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(runtime_string))));
     }
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
-    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓ j/k  Move"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓      Move"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_RuntimeType_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+bool TUI_RuntimeType_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input *input)
 {
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_UP:
         if (state->runtime_selection > 0) state->runtime_selection--;
@@ -154,14 +158,15 @@ void TUI_BoardSize_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(group));
 
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
-    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("← → h/l  Change"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("← →      Change"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_BoardSize_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+bool TUI_BoardSize_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input *input)
 {
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_LEFT:
         if (state->board_size_selection > BSHIP_BOARD_SIZE_MIN) state->board_size_selection--;
@@ -199,8 +204,8 @@ void TUI_GameCount_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_TextGroup group = TUI_TextGroup_Default(prompt);
     if (state->game_count.has_value())
     {
-        string gpm = to_string(state->game_count.value());
-        TUI_TextGroup_Add(&group, TUI_Text_New(gpm, { BOLD }, RESET, RESET));
+        string gc = to_string(state->game_count.value());
+        TUI_TextGroup_Add(&group, TUI_Text_New(gc, { BOLD }, RESET, RESET));
         TUI_Window_Add(window, TUI_Line_Default(group));
         return;
     }
@@ -266,12 +271,13 @@ void TUI_GameCount_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_GameCount_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+bool TUI_GameCount_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input *input)
 {
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_NUM:
-        if (state->game_count_string.size() < 10) state->game_count_string.push_back(input.value);
+        if (state->game_count_string.size() < 10) state->game_count_string.push_back(input->value);
         break;
     case INPUT_BACKSPACE:
         if (state->game_count_string.size() > 0) state->game_count_string.pop_back();
@@ -386,16 +392,17 @@ void TUI_MatchPlayer_Display(TUI_Window *window, TUI_OptionsState *state,
     }
 
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
-    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓ j/k  Move"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓      Move"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_MatchPlayer_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input,
+bool TUI_MatchPlayer_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input *input,
     const vector<BShip_AIFileData> &ais, BShip_PlayerNum player)
 {
     size_t *ai_selection_ref = player == BSHIP_PLAYER_1 ? &state->ai1_selection : &state->ai2_selection;
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_UP:
         if (*ai_selection_ref > 0) (*ai_selection_ref)--;
@@ -461,14 +468,15 @@ void TUI_MatchDisplayType_Display(TUI_Window *window, TUI_OptionsState *state)
         TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(match_display_string))));
     }
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
-    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓ j/k  Move"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("↑ ↓      Move"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_MatchDisplayType_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+bool TUI_MatchDisplayType_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input *input)
 {
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_UP:
         if (state->match_display_type_selection > 0) state->match_display_type_selection--;
@@ -522,14 +530,15 @@ void TUI_ManualStepping_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(group));
 
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
-    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("← → h/l  Change"))));
+    TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("← →      Change"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Enter    Select"))));
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_ManualStepping_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+bool TUI_ManualStepping_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input *input)
 {
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_LEFT:
         state->manual_stepping_selection = false;
@@ -649,13 +658,14 @@ void TUI_StepDelayMS_Display(TUI_Window *window, TUI_OptionsState *state)
     TUI_Window_Add(window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default("Esc/q    Quit"))));
 }
 
-bool TUI_StepDelayMS_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input input)
+bool TUI_StepDelayMS_Input(TUI_OptionsState *state, TUI_Options *options, TUI_Input *input)
 {
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_NUM:
     case INPUT_PERIOD:
-        if (state->step_delay_ms_string.size() < 10) state->step_delay_ms_string.push_back(input.value);
+        if (state->step_delay_ms_string.size() < 10) state->step_delay_ms_string.push_back(input->value);
         break;
     case INPUT_BACKSPACE:
         if (state->step_delay_ms_string.size() > 0) state->step_delay_ms_string.pop_back();
@@ -681,24 +691,31 @@ bool TUI_Options_Display(TUI_Window *window, TUI_OptionsState *state, const vect
     if (!state->runtime.has_value()) return false;
 
     TUI_RuntimeType runtime = state->runtime.has_value() ? state->runtime.value() : RUNTIME_NONE;
-    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_CONTEST)
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_HUMAN_GAME || runtime == RUNTIME_CONTEST)
     {
         TUI_BoardSize_Display(window, state);
         if (!state->board_size.has_value()) return false;
 
-        TUI_GameCount_Display(window, state);
-        if (!state->game_count.has_value()) return false;
+        if (runtime != RUNTIME_HUMAN_GAME)
+        {
+            TUI_GameCount_Display(window, state);
+            if (!state->game_count.has_value()) return false;
+        }
     }
 
-    if (runtime == RUNTIME_MATCH)
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_HUMAN_GAME)
     {
-        TUI_MatchPlayer_Display(window, state, ais, BSHIP_PLAYER_1);
-        if (!state->ai1.has_value()) return false;
+        if (runtime != RUNTIME_HUMAN_GAME)
+        {
+            TUI_MatchPlayer_Display(window, state, ais, BSHIP_PLAYER_1);
+            if (!state->ai1.has_value()) return false;
+        }
 
         TUI_MatchPlayer_Display(window, state, ais, BSHIP_PLAYER_2);
         if (!state->ai2.has_value()) return false;
     }
     
+    // NOTE(mattg): No need to replay a human game
     if (runtime == RUNTIME_MATCH || runtime == RUNTIME_REPLAY_MATCH)
     {
         TUI_MatchDisplayType_Display(window, state);
@@ -719,7 +736,7 @@ bool TUI_Options_Display(TUI_Window *window, TUI_OptionsState *state, const vect
     return true;
 }
 
-bool TUI_Options_Input(TUI_Input input, TUI_OptionsState *state, TUI_Options *options,
+bool TUI_Options_Input(TUI_Input *input, TUI_OptionsState *state, TUI_Options *options,
     const vector<BShip_AIFileData> &ais)
 {
     if (!state->runtime.has_value())
@@ -727,24 +744,30 @@ bool TUI_Options_Input(TUI_Input input, TUI_OptionsState *state, TUI_Options *op
         return TUI_RuntimeType_Input(state, options, input);
     }
     TUI_RuntimeType runtime = state->runtime.has_value() ? state->runtime.value() : RUNTIME_NONE;
-    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_CONTEST)
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_HUMAN_GAME || runtime == RUNTIME_CONTEST)
     {
         if (!state->board_size.has_value())
         {
             return TUI_BoardSize_Input(state, options, input);
         }
         
-        if (!state->game_count.has_value())
+        if (runtime != RUNTIME_HUMAN_GAME)
         {
-            return TUI_GameCount_Input(state, options, input);
+            if (!state->game_count.has_value())
+            {
+                return TUI_GameCount_Input(state, options, input);
+            }
         }
     }
 
-    if (runtime == RUNTIME_MATCH)
+    if (runtime == RUNTIME_MATCH || runtime == RUNTIME_HUMAN_GAME)
     {
-        if (!state->ai1.has_value())
+        if (runtime != RUNTIME_HUMAN_GAME)
         {
-            return TUI_MatchPlayer_Input(state, options, input, ais, BSHIP_PLAYER_1);
+            if (!state->ai1.has_value())
+            {
+                return TUI_MatchPlayer_Input(state, options, input, ais, BSHIP_PLAYER_1);
+            }
         }
 
         if (!state->ai2.has_value())
@@ -753,6 +776,7 @@ bool TUI_Options_Input(TUI_Input input, TUI_OptionsState *state, TUI_Options *op
         }
     }
 
+    // NOTE(mattg): No need to replay a human game
     if (runtime == RUNTIME_MATCH || runtime == RUNTIME_REPLAY_MATCH)
     {
         if (!state->match_display_type.has_value())
@@ -886,7 +910,7 @@ bool TUI_Options_Get(TUI_Options *options, const vector<BShip_AIFileData> &ais, 
 
         input = TUI_Input_Get(true, 0);
         TUI_Input_ScrollState_Get(&window, input);
-        should_exit = TUI_Options_Input(input, &state, options, ais);
+        should_exit = TUI_Options_Input(&input, &state, options, ais);
     }
 on_exit:
     TUI_Window_Exit(&window);

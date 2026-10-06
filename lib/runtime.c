@@ -158,6 +158,30 @@ bool BShip_AIMatchData_PushNames(BShip_Arena *arena, BShip_AIMatchData *match)
     return true;
 }
 
+bool BShip_LongTermValues_Initialize(BShip_Arena *arena, BShip_MatchData *match)
+{
+    match->game_indexes.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint32_t, match->game_count);
+    if (match->game_indexes.buffer == NULL)
+    {
+        return false;
+    }
+    match->game_indexes.capacity = match->game_count;
+    uint32_t ship_count_max = ShipCountMax_From_BoardSize(match->board_size) * match->game_count;
+    uint32_t shot_count_max = match->board_size * match->board_size * match->game_count;
+    uint32_t events_max = ship_count_max + shot_count_max + (match->game_count * 2);
+    match->events.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Event, events_max);
+    if (match->events.buffer == NULL)
+    {
+        return false;
+    }
+    match->events.capacity = events_max;
+    if (!BShip_AIMatchData_PushNames(arena, &match->ai1) || !BShip_AIMatchData_PushNames(arena, &match->ai2))
+    {
+        return false;
+    }
+    return true;
+}
+
 bool HasErrored(BShip_MatchData *match)
 {
     return (match->ai1.error.type != ERROR_SUCCESS || match->ai2.error.type != ERROR_SUCCESS);
@@ -166,8 +190,11 @@ bool HasErrored(BShip_MatchData *match)
 bool GameIsOver(BShip_MatchData *match)
 {
     return match->state->shot_counter >= match->state->game_shot_count_max ||
-        match->state->ai1.alive_ships.length == 0 || match->state->ai2.alive_ships.length == 0 ||
-        match->state->next_shot == false || match->state->game_state == GAME_STATE_GAMES_OVER;
+        (match->state->game_state == GAME_STATE_EXPECTING_SHOT && (
+            match->state->ai1.alive_ships.length == 0 ||
+            match->state->ai2.alive_ships.length == 0 ||
+            match->state->next_shot == false
+        )) || match->state->game_state == GAME_STATE_GAMES_OVER;
 }
 
 bool MatchIsOver(BShip_MatchData *match)
@@ -330,7 +357,7 @@ void MatchState_AcceptShot(BShip_MatchData *match)
         goto on_error;
     }
 
-    // NdOTE(mattg): Shots are stored in the opponent's board
+    // NOTE(mattg): Shots are stored in the opponent's board
     match->ai1.error = ValidateAndStoreShot(match->state->ai2.board, &ai1_shot);
     match->ai2.error = ValidateAndStoreShot(match->state->ai1.board, &ai2_shot);
     if (HasErrored(match))
@@ -453,7 +480,8 @@ void BShip_Connection_Destroy(BShip_Connection *conn)
 
 bool BShip_Match_ShouldContinue(BShip_MatchData *match)
 {
-    return match->state != NULL && !HasErrored(match) && match->state->game_state != GAME_STATE_GAMES_OVER;
+    return match != NULL && match->state != NULL && !HasErrored(match) &&
+        match->state->game_state != GAME_STATE_GAMES_OVER;
 }
 
 BShip_MatchData BShip_Match_Initialize(BShip_Arena *arena,
@@ -492,22 +520,7 @@ BShip_MatchData BShip_Match_Initialize(BShip_Arena *arena,
     match.state->ai2.file_data = ai2_file_data;
 
     // initialize all long-term values
-    match.game_indexes.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint32_t, match.game_count);
-    if (match.game_indexes.buffer == NULL)
-    {
-        goto on_error;
-    }
-    match.game_indexes.capacity = match.game_count;
-    uint32_t ship_count_max = ShipCountMax_From_BoardSize(match.board_size) * match.game_count;
-    uint32_t shot_count_max = match.board_size * match.board_size * match.game_count;
-    uint32_t events_max = ship_count_max + shot_count_max + (match.game_count * 2);
-    match.events.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Event, events_max);
-    if (match.events.buffer == NULL)
-    {
-        goto on_error;
-    }
-    match.events.capacity = events_max;
-    if (!BShip_AIMatchData_PushNames(arena, &match.ai1) || !BShip_AIMatchData_PushNames(arena, &match.ai2))
+    if (!BShip_LongTermValues_Initialize(arena, &match))
     {
         goto on_error;
     }
@@ -530,7 +543,7 @@ on_error:
 
 void BShip_Match_Start(BShip_MatchData *match, BShip_Connection *conn, char *socket_path)
 {
-    if (match == NULL || conn == NULL || socket_path == NULL)
+    if (match == NULL || match->state == NULL || conn == NULL || socket_path == NULL)
     {
         goto on_error;
     }
@@ -603,7 +616,10 @@ void BShip_Match_Start(BShip_MatchData *match, BShip_Connection *conn, char *soc
 
     return;
 on_error:
-    match->state->game_state = GAME_STATE_GAMES_OVER;
+    if (match->state != NULL)
+    {
+        match->state->game_state = GAME_STATE_GAMES_OVER;
+    }
 }
 
 void BShip_Match_Continue(BShip_MatchData *match)
@@ -646,6 +662,10 @@ on_end:
 
 void BShip_Match_Stop(BShip_MatchData *match, BShip_Arena *arena)
 {
+    if (match == NULL || match->state == NULL || arena == NULL)
+    {
+        return;
+    }
     // TODO(mattg): Look at errors, if an AI has a message error, allocate a message buffer
     // and copy the message from the respective AI so we have it as an error.
     (void)arena;
@@ -684,3 +704,385 @@ void BShip_Match_Stop(BShip_MatchData *match, BShip_Arena *arena)
     BShip_Arena_Destroy(&match->temp_arena);
 }
 
+BShip_MatchData BShip_HumanGame_Initialize(BShip_Arena *arena, BShip_AIFileData ai2_file_data,
+    uint8_t board_size, bool debug)
+{
+    BShip_MatchData match = {0};
+    if (
+        arena == NULL ||
+        !BoardSize_Valid(board_size) ||
+        ai2_file_data.file_path == NULL || ai2_file_data.runtime_directory == NULL ||
+        !BShip_PathIsExecutable(ai2_file_data.file_path) ||
+        !BShip_PathIsDirectory(ai2_file_data.runtime_directory)
+    )
+    {
+        goto on_error;
+    }
+
+    match.board_size = board_size;
+    match.game_count = BShip_GameCountMin_From_BoardSize(board_size);
+    BShip_Arena_Initialize(&match.temp_arena, 0);
+    match.state = BShip_Arena_Push(&match.temp_arena, sizeof(BShip_MatchState));
+    if (match.state == NULL)
+    {
+        goto on_error;
+    }
+    memset(match.state, 0, sizeof(BShip_MatchState));
+
+    match.state->game_shot_count_max = match.board_size * match.board_size;
+    match.state->debug = debug;
+    match.state->ai2.file_data = ai2_file_data;
+
+    // initialize all long-term values
+    if (!BShip_LongTermValues_Initialize(arena, &match))
+    {
+        goto on_error;
+    }
+
+    // initialize all temp values
+    if (!AIMatchState_PushTempValues(&match.temp_arena, &match.state->ai1, match.board_size) ||
+        !AIMatchState_PushTempValues(&match.temp_arena, &match.state->ai2, match.board_size))
+    {
+        goto on_error;
+    }
+
+    return match;
+on_error:
+    if (match.state != NULL)
+    {
+        match.state->game_state = GAME_STATE_GAMES_OVER;
+    }
+    return match;
+}
+
+void BShip_HumanGame_Start(BShip_MatchData *match, BShip_Connection *conn, char *socket_path,
+    char *name, size_t name_length, char *authors, size_t authors_length)
+{
+    if (match == NULL || match->state == NULL || conn == NULL || socket_path == NULL)
+    {
+        goto on_error;
+    }
+
+    match->ai2.error.type = BShip_AIConnection_StartProcess(match->state->ai2.conn, socket_path,
+        match->state->ai2.file_data.file_path, match->state->ai2.file_data.runtime_directory);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_CONNECTION_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    match->ai2.error.type = BShip_AIConnection_Accept(match->state->ai2.conn, conn, match->state->ai2.deadline,
+        match->state->debug);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_CONNECTION_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    match->ai2.error.type = BShip_AIConnection_Receive(match->state->ai2.conn, &match->state->ai2.message,
+        match->state->ai2.deadline, match->state->debug);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_MESSAGE_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+    if (name != NULL && name_length > 0)
+    {
+        memcpy(match->ai1.name, name,
+            name_length < BSHIP_MESSAGE_NAME_SIZE_MAX ? name_length : BSHIP_MESSAGE_NAME_SIZE_MAX);
+    }
+    if (authors != NULL && authors_length > 0)
+    {
+        memcpy(match->ai1.authors, authors,
+            authors_length < BSHIP_MESSAGE_NAME_SIZE_MAX ? authors_length : BSHIP_MESSAGE_NAME_SIZE_MAX);
+    }
+
+    match->ai2.error = BShip_Message_Hello_Parse(match->state->ai2.message,
+        match->ai2.name, match->ai2.authors);
+    if (HasErrored(match))
+    {
+        goto on_error;
+    }
+    match->ai1.ai_name_length = strnlen(match->ai1.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match->ai1.author_name_length = strnlen(match->ai1.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match->ai2.ai_name_length = strnlen(match->ai2.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
+    match->ai2.author_name_length = strnlen(match->ai2.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
+
+    BShip_Message_SetupMatch_Create(&match->state->ai2.message, match->board_size, BSHIP_PLAYER_2);
+
+    match->ai2.error.type = BShip_AIConnection_Send(match->state->ai2.conn, match->state->ai2.message,
+        match->state->ai2.deadline, match->state->debug);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_MESSAGE_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    BShip_U32Array_Push(&match->game_indexes, match->events.length);
+
+    match->state->next_shot = true;
+    match->state->shot_counter = 0;
+    match->state->ai1.hit_counter = 0;
+    match->state->ai2.hit_counter = 0;
+
+    match->state->ai1.ships.length = 0;
+    match->state->ai2.ships.length = 0;
+    match->state->ai1.ship_lengths.length = 0;
+    match->state->ai2.ship_lengths.length = 0;
+    match->state->ai1.alive_ships.length = 0;
+    match->state->ai2.alive_ships.length = 0;
+    match->state->ai1.dead_ships.length = 0;
+    match->state->ai2.dead_ships.length = 0;
+
+    size_t board_capacity = match->board_size * match->board_size;
+    memset(match->state->ai1.board.buffer, (uint8_t)BSHIP_WATER, sizeof(uint8_t) * board_capacity);
+    memset(match->state->ai2.board.buffer, (uint8_t)BSHIP_WATER, sizeof(uint8_t) * board_capacity);
+
+    ShipLengths_Calculate(&match->state->ai1.ship_lengths, match->board_size);
+    // NOTE(mattg): we need a copy of this to use when comparing ship lengths for both AIs.
+    memcpy(match->state->ai2.ship_lengths.buffer, match->state->ai1.ship_lengths.buffer,
+        match->state->ai1.ship_lengths.length * sizeof(uint8_t));
+    match->state->ai2.ship_lengths.length = match->state->ai1.ship_lengths.length;
+
+    BShip_Event game_start_event = {
+        .type = BSHIP_EVENT_GAME_START,
+    };
+    BShip_EventArray_Push(&match->events, game_start_event);
+
+    BShip_Message_PlaceShips_Create(&match->state->ai2.message, match->state->ai2.ship_lengths.buffer,
+        match->state->ai2.ship_lengths.length);
+
+    match->ai2.error.type = BShip_AIConnection_Send(match->state->ai2.conn, match->state->ai2.message,
+        match->state->ai2.deadline, match->state->debug);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_MESSAGE_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    match->state->game_state = GAME_STATE_EXPECTING_SHIPS;
+    return;
+on_error:
+    if (match->state != NULL)
+    {
+        match->state->game_state = GAME_STATE_GAMES_OVER;
+    }
+}
+
+bool BShip_HumanGame_ShouldContinue(BShip_MatchData *match)
+{
+    return BShip_Match_ShouldContinue(match) && !GameIsOver(match);
+}
+
+BShip_U8Array BShip_HumanGame_GetShipLengths(BShip_MatchData *match)
+{
+    BShip_U8Array ship_lengths = {0};
+    if (match == NULL || match->state == NULL || match->state->game_state != GAME_STATE_EXPECTING_SHIPS)
+    {
+        return ship_lengths;
+    }
+    assert(match->state->ai1.ship_lengths.buffer != NULL && match->state->ai1.ship_lengths.length > 0);
+
+    size_t ship_lengths_size = match->state->ai1.ship_lengths.length * sizeof(uint8_t);
+    ship_lengths.buffer = BSHIP_ARENA_PUSH_ARRAY(&match->temp_arena, uint8_t, ship_lengths_size);
+    if (ship_lengths.buffer == NULL)
+    {
+        return ship_lengths;
+    }
+    ship_lengths.capacity = match->state->ai1.ship_lengths.length;
+    memcpy(ship_lengths.buffer, match->state->ai1.ship_lengths.buffer, ship_lengths_size);
+    ship_lengths.length = match->state->ai1.ship_lengths.length;
+    return ship_lengths;
+}
+
+bool BShip_HumanGame_PlaceShips(BShip_MatchData *match, BShip_ShipArray ships)
+{
+    if (match == NULL || match->state == NULL || ships.buffer == NULL ||
+        match->state->game_state != GAME_STATE_EXPECTING_SHIPS || HasErrored(match))
+    {
+        goto on_error;
+    }
+    match->ai2.error.type = BShip_AIConnection_Receive(match->state->ai2.conn, &match->state->ai2.message,
+        match->state->ai2.deadline, match->state->debug);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_MESSAGE_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    if (ships.length != match->state->ai1.ship_lengths.length)
+    {
+        match->ai1.error.type = ERROR_MESSAGE_SHIPS_PLACED_INVALID;
+        goto on_error;
+    }
+    memcpy(match->state->ai1.ships.buffer, ships.buffer, sizeof(BShip_Ship) * ships.length);
+    match->state->ai1.ships.length = ships.length;
+    match->ai2.error = BShip_Message_ShipsPlaced_Parse(match->state->ai2.message, &match->state->ai2.ships,
+        match->state->ai2.ship_lengths.length);
+    if (HasErrored(match))
+    {
+        goto on_error;
+    }
+    assert(match->state->ai1.ships.length == match->state->ai1.ship_lengths.length);
+    assert(match->state->ai2.ships.length == match->state->ai2.ship_lengths.length);
+
+    size_t ship_count = match->state->ai1.ships.length;
+    for (size_t i = 0; i < ship_count; i++)
+    {
+        match->ai1.error = ValidateAndStoreShip(match->state->ai1.board, match->state->ai1.ships.buffer[i],
+            &match->state->ai1.ship_lengths);
+        match->ai2.error = ValidateAndStoreShip(match->state->ai2.board, match->state->ai2.ships.buffer[i],
+            &match->state->ai2.ship_lengths);
+        if (HasErrored(match))
+        {
+            goto on_error;
+        }
+        BShip_U8Array_Push(&match->state->ai1.alive_ships, i);
+        BShip_U8Array_Push(&match->state->ai2.alive_ships, i);
+
+        BShip_Event ship_place_event = {
+            .type = BSHIP_EVENT_SHIP_PLACEMENT,
+            .value.compact.ai1_ship = BShip_CompactShip_From_Ship(match->state->ai1.ships.buffer[i]),
+            .value.compact.ai2_ship = BShip_CompactShip_From_Ship(match->state->ai2.ships.buffer[i]),
+        };
+        BShip_EventArray_Push(&match->events, ship_place_event);
+    }
+
+    match->state->game_state = GAME_STATE_EXPECTING_SHOT;
+    return true;
+on_error:
+    match->state->game_state = GAME_STATE_GAMES_OVER;
+    return false;
+}
+
+bool BShip_HumanGame_PlaceShot(BShip_MatchData *match, BShip_Shot shot)
+{
+    if (match == NULL || match->state == NULL ||
+        match->state->game_state != GAME_STATE_EXPECTING_SHOT || HasErrored(match))
+    {
+        goto on_error;
+    }
+    match->ai2.error.type = BShip_AIConnection_Receive(match->state->ai2.conn, &match->state->ai2.message,
+        match->state->ai2.deadline, match->state->debug);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_MESSAGE_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    BShip_Shot ai1_shot = shot, ai2_shot = {0};
+    match->ai2.error = BShip_Message_ShotTaken_Parse(match->state->ai2.message, &ai2_shot);
+    if (HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    // NOTE(mattg): Shots are stored in the opponent's board
+    match->ai1.error = ValidateAndStoreShot(match->state->ai2.board, &ai1_shot);
+    match->ai2.error = ValidateAndStoreShot(match->state->ai1.board, &ai2_shot);
+    if (HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    BShip_Ship *ai1_dead_ship = NULL, *ai2_dead_ship = NULL;
+    if (ai2_shot.value == BSHIP_HIT)
+    {
+        match->state->ai2.hit_counter++;
+        ai1_dead_ship = AIMatchState_FindDeadShip(&match->state->ai1);
+    }
+    if (ai1_shot.value == BSHIP_HIT)
+    {
+        match->state->ai1.hit_counter++;
+        ai2_dead_ship = AIMatchState_FindDeadShip(&match->state->ai2);
+    }
+
+
+    BShip_Event shot_result_event = {
+        .type = BSHIP_EVENT_SHOT_RESULT,
+        .value.compact.ai1_shot = BShip_CompactShot_From_Shot(ai1_shot),
+        .value.compact.ai2_shot = BShip_CompactShot_From_Shot(ai2_shot),
+        .value.compact.ai1_ship = ai1_dead_ship != NULL ? BShip_CompactShip_From_Ship(*ai1_dead_ship) : 0,
+        .value.compact.ai2_ship = ai2_dead_ship != NULL ? BShip_CompactShip_From_Ship(*ai2_dead_ship) : 0,
+    };
+    BShip_EventArray_Push(&match->events, shot_result_event);
+
+    match->state->shot_counter++;
+
+    match->state->next_shot = true;
+    if (match->state->shot_counter >= match->state->game_shot_count_max ||
+        match->state->ai1.alive_ships.length == 0 ||
+        match->state->ai2.alive_ships.length == 0)
+    {
+        match->state->next_shot = false;
+    }
+
+    BShip_Message_ShotResult_Create(&match->state->ai2.message, ai1_shot, ai2_shot,
+        ai1_dead_ship, ai2_dead_ship, match->state->next_shot);
+    match->ai2.error.type = BShip_AIConnection_Send(match->state->ai2.conn, match->state->ai2.message,
+        match->state->ai2.deadline, match->state->debug);
+    if (!BShip_Timer_In_Milliseconds(match->state->ai2.deadline, BSHIP_MESSAGE_TIMEOUT_MILLISECONDS) ||
+        HasErrored(match))
+    {
+        goto on_error;
+    }
+
+    if (match->state->next_shot)
+    {
+        match->state->game_state = GAME_STATE_EXPECTING_SHOT;
+    }
+    else
+    {
+        match->state->game_state = GAME_STATE_GAMES_OVER;
+    }
+    return true;
+on_error:
+    match->state->game_state = GAME_STATE_GAMES_OVER;
+    return false;
+}
+
+bool BShip_HumanGame_Stop(BShip_MatchData *match, BShip_Arena *arena)
+{
+    if (match == NULL || match->state == NULL)
+    {
+        return false;
+    }
+    if (GameIsOver(match))
+    {
+        MatchState_CheckGameWinner(match);
+    }
+    else
+    {
+        BShip_Event game_result_event = {
+            .type = BSHIP_EVENT_GAME_RESULT,
+            .value.ai1_game_result = BSHIP_LOSS,
+        };
+        BShip_EventArray_Push(&match->events, game_result_event);
+    }
+
+    // TODO(mattg): Look at errors, if an AI has a message error, allocate a message buffer
+    // and copy the message from the respective AI so we have it as an error.
+    (void)arena;
+    BShip_Message message = {
+        .buffer = BSHIP_ARENA_PUSH_ARRAY(&match->temp_arena, char, BSHIP_MESSAGE_SIZE),
+    };
+    if (message.buffer != NULL)
+    {
+        BShip_Message_MatchOver_Create(&message);
+        if (match->ai2.error.type == ERROR_SUCCESS)
+        {
+            BShip_AIConnection_Send(match->state->ai2.conn, message, match->state->ai2.deadline,
+                match->state->debug);
+        }
+    }
+
+    BShip_AIConnection_Close(match->state->ai2.conn);
+
+    if (!BShip_AIConnection_WaitProcess(match->state->ai2.conn, match->state->debug))
+    {
+        BShip_AIConnection_KillProcess(match->state->ai2.conn);
+    }
+
+    BShip_Arena_Destroy(&match->temp_arena);
+    return true;
+}

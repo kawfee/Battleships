@@ -50,8 +50,15 @@ void BShip_AIMatchData_Create(yyjson_mut_doc *doc, yyjson_mut_val *ai_root, BShi
         case ERROR_MESSAGE_HELLO_INVALID:
         case ERROR_MESSAGE_SHIPS_PLACED_INVALID:
         case ERROR_MESSAGE_SHOT_TAKEN_INVALID:
-            yyjson_mut_obj_add_strn(doc, err, MESSAGE_KEY,
-                match.error.value.message.buffer, match.error.value.message.length);
+            if (match.error.value.message.buffer == NULL)
+            {
+                yyjson_mut_obj_add_strn(doc, err, MESSAGE_KEY, "", 0);
+            }
+            else
+            {
+                yyjson_mut_obj_add_strn(doc, err, MESSAGE_KEY,
+                    match.error.value.message.buffer, match.error.value.message.length);
+            }
             break;
         case ERROR_SHIP_LENGTH_INVALID:
         case ERROR_SHIP_OFF_BOARD:
@@ -147,7 +154,11 @@ bool BShip_AIMatchData_Parse(BShip_Arena *arena, yyjson_val *ai_root, BShip_AIMa
     assert(match->authors != NULL);
     {
         yyjson_val *obj = yyjson_obj_get(ai_root, AI_NAME_KEY);
-        if (!yyjson_is_str(obj)) goto on_error;
+        if (!yyjson_is_str(obj))
+        {
+            PRINT_ERROR("Invalid ai match log");
+            return false;
+        }
         size_t name_len = yyjson_get_len(obj);
         if (name_len > BSHIP_MESSAGE_NAME_SIZE_MAX)
         {
@@ -158,7 +169,11 @@ bool BShip_AIMatchData_Parse(BShip_Arena *arena, yyjson_val *ai_root, BShip_AIMa
     }
     {
         yyjson_val *obj = yyjson_obj_get(ai_root, AUTHOR_NAMES_KEY);
-        if (!yyjson_is_str(obj)) goto on_error;
+        if (!yyjson_is_str(obj))
+        {
+            PRINT_ERROR("Invalid ai match log");
+            return false;
+        }
         size_t authors_len = yyjson_get_len(obj);
         if (authors_len > BSHIP_MESSAGE_NAME_SIZE_MAX)
         {
@@ -172,16 +187,28 @@ bool BShip_AIMatchData_Parse(BShip_Arena *arena, yyjson_val *ai_root, BShip_AIMa
     match->error.type = ERROR_SUCCESS;
     if (err_obj != NULL)
     {
-        if (!yyjson_is_obj(err_obj)) goto on_error;
+        if (!yyjson_is_obj(err_obj))
+        {
+            PRINT_ERROR("Invalid ai match log");
+            return false;
+        }
         {
             yyjson_val *obj = yyjson_obj_get(err_obj, ERROR_TYPE_KEY);
-            if (!yyjson_is_uint(obj)) goto on_error;
+            if (!yyjson_is_uint(obj))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.type = (BShip_ErrorType)yyjson_get_uint(obj);
         }
         {
             yyjson_val *obj = yyjson_obj_get(err_obj, EXIT_STATUS_KEY);
-            if (!yyjson_is_sint(obj)) goto on_error;
-            match->error.exit_status = yyjson_get_sint(obj);
+            if (!yyjson_is_int(obj))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
+            match->error.exit_status = yyjson_get_int(obj);
         }
         switch (match->error.type)
         {
@@ -201,14 +228,22 @@ bool BShip_AIMatchData_Parse(BShip_Arena *arena, yyjson_val *ai_root, BShip_AIMa
         case ERROR_MESSAGE_SHOT_TAKEN_INVALID:
         {
             yyjson_val *obj = yyjson_obj_get(err_obj, MESSAGE_KEY);
-            if (!yyjson_is_str(obj)) goto on_error;
+            if (!yyjson_is_str(obj))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             size_t message_len = yyjson_get_len(obj);
             if (message_len > BSHIP_MESSAGE_SIZE)
             {
                 message_len = BSHIP_MESSAGE_SIZE;
             }
             match->error.value.message.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_SIZE);
-            if (match->error.value.message.buffer == NULL) goto on_error;
+            if (match->error.value.message.buffer == NULL)
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             memset(match->error.value.message.buffer, 0, BSHIP_MESSAGE_SIZE);
             const char *message = yyjson_get_str(obj);
             strncpy(match->error.value.message.buffer, message, message_len);
@@ -218,50 +253,92 @@ bool BShip_AIMatchData_Parse(BShip_Arena *arena, yyjson_val *ai_root, BShip_AIMa
         case ERROR_SHIP_OVERLAP:
         {
             yyjson_val *obj = yyjson_obj_get(err_obj, SHIP_KEY);
-            if (!yyjson_is_arr(obj)) goto on_error;
-            if (yyjson_arr_size(obj) != 4) goto on_error;
+            if (!yyjson_is_arr(obj))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
+            if (yyjson_arr_size(obj) != 4)
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             
             yyjson_val *row = yyjson_arr_get(obj, 0);
-            if (!yyjson_is_uint(row)) goto on_error;
+            if (!yyjson_is_uint(row))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.value.ship.row = yyjson_get_uint(row);
             
             yyjson_val *column = yyjson_arr_get(obj, 1);
-            if (!yyjson_is_uint(column)) goto on_error;
+            if (!yyjson_is_uint(column))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.value.ship.column = yyjson_get_uint(column);
             
             yyjson_val *length = yyjson_arr_get(obj, 2);
-            if (!yyjson_is_uint(length)) goto on_error;
+            if (!yyjson_is_uint(length))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.value.ship.length = yyjson_get_uint(length);
             
             yyjson_val *direction = yyjson_arr_get(obj, 3);
-            if (!yyjson_is_uint(direction)) goto on_error;
+            if (!yyjson_is_uint(direction))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.value.ship.direction = (BShip_Direction)yyjson_get_uint(direction);
         } break;
         case ERROR_SHOT_OFF_BOARD:
         case ERROR_SHOT_DUPLICATE:
         {
             yyjson_val *obj = yyjson_obj_get(err_obj, SHOT_KEY);
-            if (!yyjson_is_arr(obj)) goto on_error;
-            if (yyjson_arr_size(obj) != 3) goto on_error;
+            if (!yyjson_is_arr(obj))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
+            if (yyjson_arr_size(obj) != 3)
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             
             yyjson_val *row = yyjson_arr_get(obj, 0);
-            if (!yyjson_is_uint(row)) goto on_error;
+            if (!yyjson_is_uint(row))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.value.shot.row = yyjson_get_uint(row);
             
             yyjson_val *column = yyjson_arr_get(obj, 1);
-            if (!yyjson_is_uint(column)) goto on_error;
+            if (!yyjson_is_uint(column))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.value.shot.column = yyjson_get_uint(column);
             
             yyjson_val *value = yyjson_arr_get(obj, 2);
-            if (!yyjson_is_uint(value)) goto on_error;
+            if (!yyjson_is_uint(value))
+            {
+                PRINT_ERROR("Invalid ai match log");
+                return false;
+            }
             match->error.value.shot.value = (BShip_BoardValue)yyjson_get_uint(value);
         } break;
         }
     }
 
     return true;
-on_error:
-    return false;
 }
 
 bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path)
@@ -283,18 +360,26 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
         .capacity = file_size,
     };
 
-    if (!BShip_File_Read(path, &buffer, file_size)) return false;
+    if (!BShip_File_Read(path, &buffer, file_size))
+    {
+        PRINT_ERROR_F("Couldn't read file at %s", path);
+        return false;
+    }
 
     yyjson_doc *doc = yyjson_read((const char *)buffer.buffer, buffer.length, 0);
 
-    if (doc == NULL) goto on_error;
+    if (doc == NULL) {
+        PRINT_ERROR_F("Invalid match log stored at %s", path);
+        return false;
+    }
     BSHIP_ARENA_TEMP_END(arena);
     {
         match->ai1.name = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
         match->ai1.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
         if (match->ai1.name == NULL || match->ai1.authors == NULL)
         {
-            goto on_error;
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
         }
         memset(match->ai1.name, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
         memset(match->ai1.authors, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
@@ -304,7 +389,8 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
         match->ai2.authors = BSHIP_ARENA_PUSH_ARRAY(arena, char, BSHIP_MESSAGE_NAME_SIZE_MAX);
         if (match->ai2.name == NULL || match->ai2.authors == NULL)
         {
-            goto on_error;
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
         }
         memset(match->ai2.name, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
         memset(match->ai2.authors, 0, BSHIP_MESSAGE_NAME_SIZE_MAX);
@@ -313,32 +399,68 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
     yyjson_val *root = yyjson_doc_get_root(doc);
     {
         yyjson_val *obj = yyjson_obj_get(root, BOARD_SIZE_KEY);
-        if (!yyjson_is_uint(obj)) goto on_error;
+        if (!yyjson_is_uint(obj))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
         match->board_size = yyjson_get_uint(obj);
     }
-    if (match->board_size < BSHIP_BOARD_SIZE_MIN || match->board_size > BSHIP_BOARD_SIZE_MAX) goto on_error;
+    if (match->board_size < BSHIP_BOARD_SIZE_MIN || match->board_size > BSHIP_BOARD_SIZE_MAX)
+    {
+        PRINT_ERROR_F("Invalid match log stored at %s", path);
+        return false;
+    }
     {
         yyjson_val *obj = yyjson_obj_get(root, AI1_KEY);
-        if (!yyjson_is_obj(obj)) goto on_error;
-        if (!BShip_AIMatchData_Parse(arena, obj, &match->ai1)) goto on_error;
+        if (!yyjson_is_obj(obj))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
+        if (!BShip_AIMatchData_Parse(arena, obj, &match->ai1))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
     }
     {
         yyjson_val *obj = yyjson_obj_get(root, AI2_KEY);
-        if (!yyjson_is_obj(obj)) goto on_error;
-        if (!BShip_AIMatchData_Parse(arena, obj, &match->ai2)) goto on_error;
+        if (!yyjson_is_obj(obj))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
+        if (!BShip_AIMatchData_Parse(arena, obj, &match->ai2))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
     }
 
     uint32_t game_count_max = BShip_GameCountMax_From_BoardSize(match->board_size);
     match->game_indexes.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, uint32_t, game_count_max);
-    if (match->game_indexes.buffer == NULL) goto on_error;
+    if (match->game_indexes.buffer == NULL)
+    {
+        PRINT_ERROR_F("Invalid match log stored at %s", path);
+        return false;
+    }
     match->game_indexes.capacity = game_count_max;
 
     yyjson_val *events = yyjson_obj_get(root, EVENTS_KEY);
-    if (!yyjson_is_arr(events)) goto on_error;
+    if (!yyjson_is_arr(events))
+    {
+        PRINT_ERROR_F("Invalid match log stored at %s", path);
+        return false;
+    }
 
     size_t events_size = yyjson_arr_size(events);
     match->events.buffer = BSHIP_ARENA_PUSH_ARRAY(arena, BShip_Event, events_size);
-    if (match->events.buffer == NULL) goto on_error;
+    if (match->events.buffer == NULL)
+    {
+        PRINT_ERROR_F("Invalid match log stored at %s", path);
+        return false;
+    }
     match->events.capacity = events_size;
 
     yyjson_arr_iter iter = {0};
@@ -347,12 +469,24 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
 
     while ((event = yyjson_arr_iter_next(&iter)))
     {
-        if (!yyjson_is_arr(event)) goto on_error;
+        if (!yyjson_is_arr(event))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
         size_t event_size = yyjson_arr_size(event);
-        if (event_size == 0 || event_size > 5) goto on_error;
+        if (event_size == 0 || event_size > 5)
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
 
         yyjson_val *event_type = yyjson_arr_get(event, 0);
-        if (!yyjson_is_uint(event_type)) goto on_error;
+        if (!yyjson_is_uint(event_type))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
         BShip_Event e = {
             .type = (BShip_EventType)yyjson_get_uint(event_type),
         };
@@ -363,43 +497,83 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
             break;
         case BSHIP_EVENT_SHIP_PLACEMENT:
         {
-            if (event_size != 3) goto on_error;
+            if (event_size != 3)
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
             yyjson_val *ai1_ship = yyjson_arr_get(event, 1);
-            if (!yyjson_is_uint(ai1_ship)) goto on_error;
+            if (!yyjson_is_uint(ai1_ship))
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
             e.value.compact.ai1_ship = yyjson_get_uint(ai1_ship);
 
             yyjson_val *ai2_ship = yyjson_arr_get(event, 2);
-            if (!yyjson_is_uint(ai2_ship)) goto on_error;
+            if (!yyjson_is_uint(ai2_ship))
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
             e.value.compact.ai2_ship = yyjson_get_uint(ai2_ship);
         } break;
         case BSHIP_EVENT_SHOT_RESULT:
         {
-            if (event_size != 3 && event_size != 5) goto on_error;
+            if (event_size != 3 && event_size != 5)
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
             yyjson_val *ai1_shot = yyjson_arr_get(event, 1);
-            if (!yyjson_is_uint(ai1_shot)) goto on_error;
+            if (!yyjson_is_uint(ai1_shot))
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
             e.value.compact.ai1_shot = yyjson_get_uint(ai1_shot);
 
             yyjson_val *ai2_shot = yyjson_arr_get(event, 2);
-            if (!yyjson_is_uint(ai2_shot)) goto on_error;
+            if (!yyjson_is_uint(ai2_shot))
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
             e.value.compact.ai2_shot = yyjson_get_uint(ai2_shot);
 
             if (event_size == 5)
             {
                 yyjson_val *ai1_ship = yyjson_arr_get(event, 3);
-                if (!yyjson_is_uint(ai1_ship)) goto on_error;
+                if (!yyjson_is_uint(ai1_ship))
+                {
+                    PRINT_ERROR_F("Invalid match log stored at %s", path);
+                    return false;
+                }
                 e.value.compact.ai1_ship = yyjson_get_uint(ai1_ship);
 
                 yyjson_val *ai2_ship = yyjson_arr_get(event, 4);
-                if (!yyjson_is_uint(ai2_ship)) goto on_error;
+                if (!yyjson_is_uint(ai2_ship))
+                {
+                    PRINT_ERROR_F("Invalid match log stored at %s", path);
+                    return false;
+                }
                 e.value.compact.ai2_ship = yyjson_get_uint(ai2_ship);
             }
         } break;
         case BSHIP_EVENT_GAME_RESULT:
         {
-            if (event_size != 2) goto on_error;
+            if (event_size != 2)
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
 
             yyjson_val *game_result = yyjson_arr_get(event, 1);
-            if (!yyjson_is_uint(game_result)) goto on_error;
+            if (!yyjson_is_uint(game_result))
+            {
+                PRINT_ERROR_F("Invalid match log stored at %s", path);
+                return false;
+            }
             e.value.ai1_game_result = (BShip_GameResult)yyjson_get_uint(game_result);
 
         } break;
@@ -413,8 +587,4 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
 
     yyjson_doc_free(doc);
     return true;
-on_error:
-    PRINT_ERROR_F("Invalid match log stored at %s", path);
-    yyjson_doc_free(doc);
-    return false;
 }

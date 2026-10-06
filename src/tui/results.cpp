@@ -1,5 +1,5 @@
 /**
- * @file options.cpp
+ * @file results.cpp
  * @author Matthew Getgen
  * @brief Battleships TUI output results.
  * @date 2026-07-04
@@ -37,12 +37,265 @@ Color TUI_Player_Color_Get(BShip_PlayerNum player)
     return player == BSHIP_PLAYER_1 ? PLAYER_1_COLOR : PLAYER_2_COLOR;
 }
 
-void TUI_Board_Add(vector<TUI_TextGroup> &group, const string &name, BShip_Board board, BShip_PlayerNum player)
+typedef enum {
+    SHIP_TYPE_NONE,
+    SHIP_TYPE_BOW_HORIZONTAL,
+    SHIP_TYPE_BODY_HORIZONTAL,
+    SHIP_TYPE_STERN_HORIZONTAL,
+    SHIP_TYPE_BOW_VERTICAL,
+    SHIP_TYPE_BODY_VERTICAL,
+    SHIP_TYPE_STERN_VERTICAL,
+} TUI_ShipType;
+
+typedef struct {
+    TUI_ShipType *buffer;
+    uint8_t size;
+} TUI_ShipTypeTable;
+
+TUI_ShipTypeTable TUI_ShipTypeTable_Allocate(BShip_Arena *arena, uint8_t board_size)
 {
-    group.push_back(TUI_TextGroup_Default(TUI_Text_New(name, { BOLD }, TUI_Player_Color_Get(player), RESET)));
+    TUI_ShipTypeTable table = {
+        .buffer = (TUI_ShipType *)BShip_Arena_Push(arena, sizeof(TUI_ShipType) * board_size * board_size),
+        .size = board_size,
+    };
+    if (table.buffer == NULL)
+    {
+        table.size = 0;
+    }
+    else
+    {
+        memset(table.buffer, 0, sizeof(TUI_ShipType) * board_size * board_size);
+    }
+    return table;
+}
+
+void TUI_ShipTypeTable_Store_Ship(TUI_ShipTypeTable table, BShip_Ship ship)
+{
+    uint8_t row_multiplier = ship.direction == BSHIP_VERTICAL;
+    uint8_t column_multiplier = ship.direction == BSHIP_HORIZONTAL;
+    for (uint8_t i = 0; i < ship.length; i++)
+    {
+        uint8_t row = ship.row + (i * row_multiplier);
+        uint8_t column = ship.column + (i * column_multiplier);
+        uint8_t index = (row * table.size) + column;
+        assert(index < table.size * table.size);
+
+        TUI_ShipType type = SHIP_TYPE_NONE;
+        if (i == 0)
+        {
+            if (ship.direction == BSHIP_HORIZONTAL)
+                type = SHIP_TYPE_BOW_HORIZONTAL;
+            else
+                type = SHIP_TYPE_BOW_VERTICAL;
+        }
+        else if (i == (ship.length - 1))
+        {
+            if (ship.direction == BSHIP_HORIZONTAL)
+                type = SHIP_TYPE_STERN_HORIZONTAL;
+            else
+                type = SHIP_TYPE_STERN_VERTICAL;
+        }
+        else
+        {
+            if (ship.direction == BSHIP_HORIZONTAL)
+                type = SHIP_TYPE_BODY_HORIZONTAL;
+            else
+                type = SHIP_TYPE_BODY_VERTICAL;
+        }
+        table.buffer[index] = type;
+    }
+}
+
+TUI_ShipType TUI_ShipTypeTable_Get(TUI_ShipTypeTable table, uint8_t row, uint8_t column)
+{
+    assert(table.buffer != NULL);
+    assert(row < table.size);
+    assert(column < table.size);
+    uint8_t index = (row * table.size) + column;
+
+    return table.buffer[index];
+}
+
+typedef struct {
+    char c;
+    Color fg;
+    Color bg;
+} TUI_BoardDisplayCell;
+
+typedef struct {
+    TUI_BoardDisplayCell *buffer;
+    uint8_t size;
+} TUI_BoardDisplayTable;
+
+char Char_From_TUI_ShipType(TUI_ShipType type)
+{
+    char c = '\0';
+    switch (type)
+    {
+    case SHIP_TYPE_NONE:
+        assert(false);
+        break;
+    case SHIP_TYPE_BOW_HORIZONTAL:
+        c = '<';
+        break;
+    case SHIP_TYPE_BODY_HORIZONTAL:
+        c = '-';
+        break;
+    case SHIP_TYPE_STERN_HORIZONTAL:
+        c = '>';
+        break;
+    case SHIP_TYPE_BOW_VERTICAL:
+        c = '^';
+        break;
+    case SHIP_TYPE_BODY_VERTICAL:
+        c = '|';
+        break;
+    case SHIP_TYPE_STERN_VERTICAL:
+        c = 'v';
+        break;
+    }
+    return c;
+}
+
+TUI_BoardDisplayTable TUI_BoardDisplayTable_Allocate(BShip_Arena *arena, uint8_t board_size)
+{
+    TUI_BoardDisplayTable table = {
+        .buffer = (TUI_BoardDisplayCell *)BShip_Arena_Push(arena,
+            sizeof(TUI_BoardDisplayCell) * board_size * board_size),
+        .size = board_size,
+    };
+    if (table.buffer == NULL)
+    {
+        table.size = 0;
+    }
+    else
+    {
+        memset(table.buffer, 0, sizeof(TUI_BoardDisplayCell) * table.size * table.size);
+    }
+    return table;
+}
+
+typedef struct {
+    BShip_Board board;
+    TUI_ShipTypeTable ship_table;
+    TUI_BoardDisplayTable display_table;
+} TUI_BoardState;
+
+TUI_BoardState TUI_BoardState_Allocate(BShip_Arena *arena, uint8_t board_size)
+{
+    TUI_BoardState state = {
+        .board = BShip_Board_Allocate(arena, board_size),
+        .ship_table = TUI_ShipTypeTable_Allocate(arena, board_size),
+        .display_table = TUI_BoardDisplayTable_Allocate(arena, board_size),
+    };
+    return state;
+}
+
+void TUI_BoardState_Reset(TUI_BoardState state)
+{
+    memset(state.board.buffer, BSHIP_WATER, state.board.size * state.board.size);
+    memset(state.ship_table.buffer, SHIP_TYPE_NONE, sizeof(TUI_ShipType) * state.board.size * state.board.size);
+    // NOTE(mattg): we don't need to reset the board display table, it will be completely overwritten
+    // via TUI_BoardDisplayTable_Set()
+}
+
+void TUI_BoardDisplayTable_Set(TUI_BoardState state)
+{
+    assert(state.display_table.buffer != NULL);
+    assert(state.board.buffer != NULL);
+    assert(state.ship_table.buffer != NULL);
+
+    for (uint8_t i = 0; i < state.display_table.size; i++)
+    {
+        for (uint8_t j = 0; j < state.display_table.size; j++)
+        {
+            TUI_BoardDisplayCell cell = {
+                .c = '\0',
+                .fg = RESET,
+                .bg = RESET,
+            };
+
+            BShip_BoardValue value = BShip_Board_Get(state.board, i, j);
+            TUI_ShipType ship_type = TUI_ShipTypeTable_Get(state.ship_table, i, j);
+            switch (value)
+            {
+            case BSHIP_WATER:
+                cell.c = '~';
+                cell.bg = LIGHT_CYAN;
+                cell.fg = BLACK;
+                break;
+            case BSHIP_SHIP:
+                assert(ship_type != SHIP_TYPE_NONE);
+                cell.c = Char_From_TUI_ShipType(ship_type);
+                cell.fg = BLACK;
+                cell.bg = WHITE;
+                break;
+            case BSHIP_HIT:
+                assert(ship_type != SHIP_TYPE_NONE);
+                cell.c = 'H';
+                cell.fg = BLACK;
+                cell.bg = LIGHT_YELLOW;
+                break;
+            case BSHIP_MISS:
+                cell.c = '*';
+                cell.fg = BLACK;
+                cell.bg = GRAY;
+                break;
+            case BSHIP_KILL:
+                assert(ship_type != SHIP_TYPE_NONE);
+                cell.c = Char_From_TUI_ShipType(ship_type);
+                cell.fg = WHITE;
+                cell.bg = LIGHT_RED;
+                break;
+            case BSHIP_DUPLICATE_HIT:
+                assert(ship_type != SHIP_TYPE_NONE);
+                cell.c = '!';
+                cell.fg = BLACK;
+                cell.bg = LIGHT_YELLOW;
+                break;
+            case BSHIP_DUPLICATE_MISS:
+                cell.c = '!';
+                cell.fg = BLACK;
+                cell.bg = GRAY;
+                break;
+            case BSHIP_DUPLICATE_KILL:
+                assert(ship_type != SHIP_TYPE_NONE);
+                cell.c = '!';
+                cell.fg = WHITE;
+                cell.bg = LIGHT_RED;
+                break;
+            }
+            uint8_t index = (i * state.display_table.size) + j;
+            state.display_table.buffer[index] = cell;
+        }
+    }
+}
+
+TUI_BoardDisplayCell TUI_BoardDisplayTable_Get(TUI_BoardDisplayTable table, uint8_t row, uint8_t column)
+{
+    assert(table.buffer != NULL);
+    assert(row < table.size);
+    assert(column < table.size);
+
+    uint8_t index = (row * table.size) + column;
+    return table.buffer[index];
+}
+
+void TUI_BoardDisplayTable_Set(TUI_BoardDisplayTable table, TUI_BoardDisplayCell cell,
+    uint8_t row, uint8_t column)
+{
+    assert(table.buffer != NULL);
+    assert(row < table.size);
+    assert(column < table.size);
+    size_t index = (row * table.size) + column;
+    table.buffer[index] = cell;
+}
+
+void TUI_Board_Add(vector<TUI_TextGroup> &group, TUI_BoardDisplayTable table)
+{
     {
         string numbered_row = " |";
-        for (size_t i = 0; i < board.size; i++)
+        for (size_t i = 0; i < table.size; i++)
         {
             if (i < 10) numbered_row += to_string(i);
             // NOTE(mattg): ASCII A starts at 65, and this branch assumes 10+
@@ -51,14 +304,10 @@ void TUI_Board_Add(vector<TUI_TextGroup> &group, const string &name, BShip_Board
         group.push_back(TUI_TextGroup_Default(TUI_Text_Default(numbered_row)));
     }
     {
-        string line_row = "-+";
-        for (size_t i = 0; i < board.size; i++)
-        {
-            line_row += "-";
-        }
+        string line_row = "-+" + string(table.size, '-');
         group.push_back(TUI_TextGroup_Default(TUI_Text_Default(line_row)));
     }
-    for (size_t i = 0; i < board.size; i++)
+    for (size_t i = 0; i < table.size; i++)
     {
         string board_row = "";
         if (i < 10) board_row += to_string(i);
@@ -73,68 +322,21 @@ void TUI_Board_Add(vector<TUI_TextGroup> &group, const string &name, BShip_Board
         Color prev_fg = RESET;
         Color prev_bg = RESET;
         size_t j = 0;
-        while (j < board.size)
+        while (j < table.size)
         {
-            char c = '\0';
-            Color fg = RESET;
-            Color bg = RESET;
+            TUI_BoardDisplayCell cell = TUI_BoardDisplayTable_Get(table, i, j);
 
-            BShip_BoardValue value = BShip_Board_Get(board, i, j);
-            switch (value)
+            if (cell.fg == prev_fg && cell.bg == prev_bg)
             {
-            case BSHIP_WATER:
-                c = '~';
-                bg = LIGHT_CYAN;
-                fg = BLACK;
-                break;
-            case BSHIP_SHIP:
-                c = 'S';
-                fg = BLACK;
-                bg = WHITE;
-                break;
-            case BSHIP_HIT:
-                c = 'X';
-                fg = BLACK;
-                bg = LIGHT_YELLOW;
-                break;
-            case BSHIP_MISS:
-                c = '*';
-                fg = BLACK;
-                bg = GRAY;
-                break;
-            case BSHIP_KILL:
-                c = 'K';
-                fg = WHITE;
-                bg = LIGHT_RED;
-                break;
-            case BSHIP_DUPLICATE_HIT:
-                c = '!';
-                fg = BLACK;
-                bg = LIGHT_YELLOW;
-                break;
-            case BSHIP_DUPLICATE_MISS:
-                c = '!';
-                fg = BLACK;
-                bg = GRAY;
-                break;
-            case BSHIP_DUPLICATE_KILL:
-                c = '!';
-                fg = WHITE;
-                bg = LIGHT_RED;
-                break;
-            }
-
-            if (fg == prev_fg && bg == prev_bg)
-            {
-                row += c;
+                row += cell.c;
             }
             else
             {
                 TUI_TextGroup_Add(&row_group, TUI_Text_New(row, {}, prev_fg, prev_bg));
                 row = "";
-                row += c;
-                prev_fg = fg;
-                prev_bg = bg;
+                row += cell.c;
+                prev_fg = cell.fg;
+                prev_bg = cell.bg;
             }
 
             j++;
@@ -292,20 +494,22 @@ void TUI_GameStepState_PreviousStep(TUI_GameStepState *state, BShip_MatchData ma
 }
 
 void TUI_GameStepState_Apply(TUI_GameStepState *state, BShip_MatchData match,
-    BShip_Board ai1_board, BShip_Board ai2_board)
+    TUI_BoardState ai1_board_state, TUI_BoardState ai2_board_state)
 {
     assert(state != NULL);
     assert(match.game_indexes.buffer != NULL);
     assert(match.events.buffer != NULL);
-    assert(ai1_board.buffer != NULL);
-    assert(ai2_board.buffer != NULL);
+    assert(ai1_board_state.board.buffer != NULL);
+    assert(ai2_board_state.board.buffer != NULL);
+    assert(ai1_board_state.ship_table.buffer != NULL);
+    assert(ai2_board_state.ship_table.buffer != NULL);
 
     uint32_t game_event_index_start = TUI_GameStepState_Index_Start(state, match);
     uint32_t game_event_index_end = TUI_GameStepState_Index_End(state, match);
     uint32_t event_index = game_event_index_start + state->event_offset;
 
-    memset(ai1_board.buffer, BSHIP_WATER, ai1_board.size * ai1_board.size);
-    memset(ai2_board.buffer, BSHIP_WATER, ai2_board.size * ai2_board.size);
+    TUI_BoardState_Reset(ai1_board_state);
+    TUI_BoardState_Reset(ai2_board_state);
 
     uint32_t i = game_event_index_start;
     while (i <= event_index && i <= game_event_index_end && i < match.events.length)
@@ -315,25 +519,27 @@ void TUI_GameStepState_Apply(TUI_GameStepState *state, BShip_MatchData match,
         {
             BShip_Ship ai1_ship = BShip_Ship_From_CompactShip(event.value.compact.ai1_ship);
             BShip_Ship ai2_ship = BShip_Ship_From_CompactShip(event.value.compact.ai2_ship);
-            TUI_Store_Ship(ai1_board, ai1_ship, BSHIP_SHIP);
-            TUI_Store_Ship(ai2_board, ai2_ship, BSHIP_SHIP);
+            TUI_Store_Ship(ai1_board_state.board, ai1_ship, BSHIP_SHIP);
+            TUI_Store_Ship(ai2_board_state.board, ai2_ship, BSHIP_SHIP);
+            TUI_ShipTypeTable_Store_Ship(ai1_board_state.ship_table, ai1_ship);
+            TUI_ShipTypeTable_Store_Ship(ai2_board_state.ship_table, ai2_ship);
         }
         else if (event.type == BSHIP_EVENT_SHOT_RESULT)
         {
             BShip_Shot ai1_shot = BShip_Shot_From_CompactShot(event.value.compact.ai1_shot);
             BShip_Shot ai2_shot = BShip_Shot_From_CompactShot(event.value.compact.ai2_shot);
-            BShip_Board_Set(ai1_board, ai2_shot.row, ai2_shot.column, ai2_shot.value);
-            BShip_Board_Set(ai2_board, ai1_shot.row, ai1_shot.column, ai1_shot.value);
+            BShip_Board_Set(ai1_board_state.board, ai2_shot.row, ai2_shot.column, ai2_shot.value);
+            BShip_Board_Set(ai2_board_state.board, ai1_shot.row, ai1_shot.column, ai1_shot.value);
 
             if (event.value.compact.ai1_ship > 0)
             {
                 BShip_Ship ai1_dead_ship = BShip_Ship_From_CompactShip(event.value.compact.ai1_ship);
-                TUI_Store_Ship(ai1_board, ai1_dead_ship, BSHIP_KILL);
+                TUI_Store_Ship(ai1_board_state.board, ai1_dead_ship, BSHIP_KILL);
             }
             if (event.value.compact.ai2_ship > 0)
             {
                 BShip_Ship ai2_dead_ship = BShip_Ship_From_CompactShip(event.value.compact.ai2_ship);
-                TUI_Store_Ship(ai2_board, ai2_dead_ship, BSHIP_KILL);
+                TUI_Store_Ship(ai2_board_state.board, ai2_dead_ship, BSHIP_KILL);
             }
         }
         i++;
@@ -434,6 +640,11 @@ void TUI_TextGroups_Add_EventDescriptions(vector<TUI_TextGroup> &ai1_group, vect
     BShip_Ship ai1_ship = {}, ai2_ship = {};
     BShip_Shot ai1_shot = {}, ai2_shot = {};
     BShip_GameResult ai1_result = BSHIP_WIN, ai2_result = BSHIP_WIN;
+    if (event.type != BSHIP_EVENT_NONE && event.type != BSHIP_EVENT_GAME_START)
+    {
+        ai1_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
+        ai2_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
+    }
     switch (event.type)
     {
     case BSHIP_EVENT_NONE:
@@ -441,16 +652,12 @@ void TUI_TextGroups_Add_EventDescriptions(vector<TUI_TextGroup> &ai1_group, vect
         // NOTE(mattg): These events display nothing
         break;
     case BSHIP_EVENT_SHIP_PLACEMENT:
-        ai1_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
-        ai2_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
         ai1_ship = BShip_Ship_From_CompactShip(event.value.compact.ai1_ship);
         ai2_ship = BShip_Ship_From_CompactShip(event.value.compact.ai2_ship);
         ai1_group.push_back(TUI_TextGroup_Make_ShipPlacementEvent(ai1_ship, BSHIP_PLAYER_1));
         ai2_group.push_back(TUI_TextGroup_Make_ShipPlacementEvent(ai2_ship, BSHIP_PLAYER_2));
         break;
     case BSHIP_EVENT_SHOT_RESULT:
-        ai1_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
-        ai2_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
         ai1_shot = BShip_Shot_From_CompactShot(event.value.compact.ai1_shot);
         ai2_shot = BShip_Shot_From_CompactShot(event.value.compact.ai2_shot);
         if (event.value.compact.ai1_ship > 0)
@@ -465,8 +672,6 @@ void TUI_TextGroups_Add_EventDescriptions(vector<TUI_TextGroup> &ai1_group, vect
         ai2_group.push_back(TUI_TextGroup_Make_ShotPlacementEvent(ai1_shot, BSHIP_PLAYER_1));
         break;
     case BSHIP_EVENT_GAME_RESULT:
-        ai1_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
-        ai2_group.push_back(TUI_TextGroup_Default(TUI_Text_Default("")));
         ai1_result = event.value.ai1_game_result;
         ai2_result = ai1_result == BSHIP_TIE ? BSHIP_TIE :
             ai1_result == BSHIP_WIN ? BSHIP_LOSS : BSHIP_WIN;
@@ -475,6 +680,7 @@ void TUI_TextGroups_Add_EventDescriptions(vector<TUI_TextGroup> &ai1_group, vect
         break;
     }
 }
+
 typedef enum {
     STATS_TEXT,
     STATS_RESULT,
@@ -563,11 +769,19 @@ string String_From_Float(float value)
 
 TUI_Text TUI_Text_From_Percent(float percent)
 {
+    if (isnan(percent))
+    {
+        return TUI_Text_Default("---");
+    }
     return TUI_Text_Default(String_From_Float(percent) + "%");
 }
 
 TUI_Text TUI_Text_From_Ratio(float ratio)
 {
+    if (isnan(ratio))
+    {
+        return TUI_Text_Default("---");
+    }
     // NOTE(mattg): infinity is hit when there is a 0 in the denominator.
     // Which, in our current case the 0 means 0 missed shots, so it's a perfect game.
     if (isinf(ratio))
@@ -1071,13 +1285,10 @@ void TUI_MatchStats_Display(TUI_Window *window, string ai1_name, string ai2_name
 }
 
 void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BShip_MatchData match,
-    TUI_MatchStats stats, BShip_Board ai1_board, BShip_Board ai2_board)
+    TUI_MatchStats stats, TUI_BoardState ai1_board_state, TUI_BoardState ai2_board_state)
 {
-    string ai1_name = match.ai1.name, ai2_name = match.ai2.name;
-    // NOTE(mattg): 2 for the number and column line
-    size_t board_display_width = 2 + match.board_size;
-    size_t name_display_width = ai1_name.size() > ai2_name.size() ? ai1_name.size() : ai2_name.size();
-    size_t total_display_width = board_display_width > name_display_width ? board_display_width : name_display_width;
+    TUI_BoardDisplayTable_Set(ai1_board_state);
+    TUI_BoardDisplayTable_Set(ai2_board_state);
 
     uint32_t game_index = TUI_GameStepState_GameIndex_Get(state);
     uint32_t game_num = game_index + 1;
@@ -1089,8 +1300,20 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
     vector<TUI_TextGroup> ai1_group = {};
     vector<TUI_TextGroup> ai2_group = {};
 
-    TUI_Board_Add(ai1_group, match.ai1.name, ai1_board, BSHIP_PLAYER_1);
-    TUI_Board_Add(ai2_group, match.ai2.name, ai2_board, BSHIP_PLAYER_2);
+    string ai1_name = match.ai1.name, ai2_name = match.ai2.name;
+    // NOTE(mattg): 2 for the number and column line
+    size_t board_display_width = 2 + match.board_size;
+    size_t name_display_width = ai1_name.size() > ai2_name.size() ? ai1_name.size() : ai2_name.size();
+    size_t total_display_width = board_display_width > name_display_width ? board_display_width : name_display_width;
+
+    ai1_group.push_back(TUI_TextGroup_Default(
+        TUI_Text_New(ai1_name, { BOLD }, TUI_Player_Color_Get(BSHIP_PLAYER_1), RESET)
+    ));
+    ai2_group.push_back(TUI_TextGroup_Default(
+        TUI_Text_New(ai2_name, { BOLD }, TUI_Player_Color_Get(BSHIP_PLAYER_2), RESET)
+    ));
+    TUI_Board_Add(ai1_group, ai1_board_state.display_table);
+    TUI_Board_Add(ai2_group, ai2_board_state.display_table);
 
     BShip_Event event = TUI_GameStepState_Event_Get(state, match);
     TUI_TextGroups_Add_EventDescriptions(ai1_group, ai2_group, match, event);
@@ -1130,12 +1353,13 @@ void TUI_GameStepState_Display(TUI_Window *window, TUI_GameStepState *state, BSh
     }
 }
 
-bool TUI_GameStepState_Input(TUI_GameStepState *state, TUI_Input input,
+bool TUI_GameStepState_Input(TUI_GameStepState *state, TUI_Input *input,
     BShip_MatchData match, bool manual_stepping)
 {
     uint32_t game_event_index_start = 0;
     uint32_t game_event_index_end = 0;
-    switch (input.type)
+    TUI_Input_ConvertTextTypes(input);
+    switch (input->type)
     {
     case INPUT_ESC:
         return true;
@@ -1157,7 +1381,7 @@ bool TUI_GameStepState_Input(TUI_GameStepState *state, TUI_Input input,
     }
     if (manual_stepping && !state->game_stepping_over)
     {
-        switch (input.type)
+        switch (input->type)
         {
         case INPUT_UP:
             TUI_GameStepState_PreviousGame(state);
@@ -1223,11 +1447,15 @@ TUI_TextGroup TUI_Player_VS_Get(BShip_AIMatchData match, BShip_PlayerNum player)
 {
     string authors = match.authors;
     string name = match.name;
-    TUI_TextGroup player_vs = TUI_TextGroup_Default(TUI_Text_Default(authors + "'s "));
-    name += player == BSHIP_PLAYER_1 ? " (P1)" : " (P2)";
-    TUI_TextGroup_Add(&player_vs,
-        TUI_Text_New(name, { BOLD }, TUI_Player_Color_Get(player), RESET)
-    );
+    TUI_Text authors_text = authors.size() > 0 ? TUI_Text_Default(authors + "'s ") : TUI_Text_Default("");
+    string clean_name = name.size() > 0 ? name : "NO NAME";
+    TUI_Text name_text = name.size() > 0 ? TUI_Text_New(name, {BOLD}, TUI_Player_Color_Get(player), RESET)
+        : TUI_Text_New("NO NAME", {BOLD}, GRAY, RESET);
+    TUI_Text player_text = TUI_Text_New(player == BSHIP_PLAYER_1 ? " (P1)" : " (P2)",
+        { BOLD }, TUI_Player_Color_Get(player), RESET);
+    TUI_TextGroup player_vs = TUI_TextGroup_Default(authors_text);
+    TUI_TextGroup_Add(&player_vs, name_text);
+    TUI_TextGroup_Add(&player_vs, player_text);
     return player_vs;
 }
 
@@ -1251,8 +1479,8 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
     BShip_DerivedMatchStats match_stats = BShip_DerivedMatchStats_Get(&arena, match, type == TUI_MATCH_DISPLAY_NONE);
     TUI_MatchStats stats = TUI_MatchStats_From_BShip_DerivedMatchStats(match_stats);
 
-    BShip_Board ai1_board = BShip_Board_Allocate(&arena, match.board_size);
-    BShip_Board ai2_board = BShip_Board_Allocate(&arena, match.board_size);
+    TUI_BoardState ai1_board_state = TUI_BoardState_Allocate(&arena, match.board_size);
+    TUI_BoardState ai2_board_state = TUI_BoardState_Allocate(&arena, match.board_size);
 
     TUI_TextGroup ai1_vs_group = TUI_Player_VS_Get(match.ai1, BSHIP_PLAYER_1);
     TUI_TextGroup ai2_vs_group = TUI_Player_VS_Get(match.ai2, BSHIP_PLAYER_2);
@@ -1304,9 +1532,9 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
 
         if (type != TUI_MATCH_DISPLAY_NONE)
         {
-            TUI_GameStepState_Apply(&state, match, ai1_board, ai2_board);
+            TUI_GameStepState_Apply(&state, match, ai1_board_state, ai2_board_state);
 
-            TUI_GameStepState_Display(&window, &state, match, stats, ai1_board, ai2_board);
+            TUI_GameStepState_Display(&window, &state, match, stats, ai1_board_state, ai2_board_state);
 
             TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
             if (!state.game_stepping_over)
@@ -1314,10 +1542,10 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
                 if (manual_stepping)
                 {
                     TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
-                        TUI_Text_Default("← → h/l  Prev/Next event")
+                        TUI_Text_Default("← →      Prev/Next event")
                     )));
                     TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
-                        TUI_Text_Default("↑ ↓ j/k  Prev/Next game")
+                        TUI_Text_Default("↑ ↓      Prev/Next game")
                     )));
                 }
                 TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(
@@ -1344,7 +1572,7 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
 
         input = TUI_Input_Get(manual_stepping, timeout_ms);
         TUI_Input_ScrollState_Get(&window, input);
-        if (TUI_GameStepState_Input(&state, input, match, manual_stepping))
+        if (TUI_GameStepState_Input(&state, &input, match, manual_stepping))
         {
             break;
         }

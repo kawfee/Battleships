@@ -372,16 +372,54 @@ typedef enum {
     INPUT_SCROLL_UP,
     INPUT_SCROLL_DOWN,
     INPUT_BACKSPACE,
+    INPUT_SPACE,
     INPUT_ENTER,
+    INPUT_TAB,
     INPUT_ESC,
     INPUT_NUM,
     INPUT_PERIOD,
+    INPUT_TEXT,
 } TUI_InputType;
 
 typedef struct {
     TUI_InputType type;
     char value;
 } TUI_Input;
+
+static TUI_InputType TUI_InputType_From_Value[256] = {};
+
+void TUI_InputType_From_Value_Initialize(void)
+{
+    for (size_t i = 0; i < sizeof(TUI_InputType_From_Value) / sizeof(TUI_InputType_From_Value[0]); i++)
+    {
+        TUI_InputType_From_Value[i] = INPUT_NONE;
+    }
+    TUI_InputType_From_Value['.'] = INPUT_PERIOD;
+    TUI_InputType_From_Value['\r'] = INPUT_ENTER;
+    TUI_InputType_From_Value['\n'] = INPUT_ENTER;
+    TUI_InputType_From_Value['\t'] = INPUT_TAB;
+    TUI_InputType_From_Value[8] = INPUT_BACKSPACE;
+    TUI_InputType_From_Value[127] = INPUT_BACKSPACE;
+
+    for (uint8_t i = '0'; i <= '9'; i++)
+    {
+        TUI_InputType_From_Value[i] = INPUT_NUM;
+    }
+    for (uint8_t i = 'A'; i <= 'Z'; i++)
+    {
+        TUI_InputType_From_Value[i] = INPUT_TEXT;
+    }
+    for (uint8_t i = 'a'; i <= 'z'; i++)
+    {
+        TUI_InputType_From_Value[i] = INPUT_TEXT;
+    }
+    TUI_InputType_From_Value['_'] = INPUT_TEXT;
+    TUI_InputType_From_Value[' '] = INPUT_TEXT;
+    TUI_InputType_From_Value[','] = INPUT_TEXT;
+    TUI_InputType_From_Value['\''] = INPUT_TEXT;
+    TUI_InputType_From_Value['"'] = INPUT_TEXT;
+    TUI_InputType_From_Value['-'] = INPUT_TEXT;
+}
 
 TUI_Input TUI_Input_Get(bool wait_for_input, int32_t timeout_ms)
 {
@@ -400,43 +438,7 @@ TUI_Input TUI_Input_Get(bool wait_for_input, int32_t timeout_ms)
     ssize_t in = read(STDIN_FILENO, &input.value, 1);
     (void)in;
 
-    if (input.value >= '0' && input.value <= '9')
-    {
-        input.type = INPUT_NUM;
-        return input;
-    }
-
-    switch (input.value)
-    {
-    case 'h':
-        input.type = INPUT_LEFT;
-        break;
-    case 'j':
-        input.type = INPUT_DOWN;
-        break;
-    case 'k':
-        input.type = INPUT_UP;
-        break;
-    case 'l':
-        input.type = INPUT_RIGHT;
-        break;
-    case 'q':
-        input.type = INPUT_ESC;
-        break;
-    case '.':
-        input.type = INPUT_PERIOD;
-        break;
-    case '\r':
-    case '\n':
-        input.type = INPUT_ENTER;
-        break;
-    case 8:
-    case 127:
-        input.type = INPUT_BACKSPACE;
-        break;
-    default:
-        input.type = INPUT_NONE;
-    }
+    input.type = TUI_InputType_From_Value[(uint8_t)input.value];
 
     if (input.value != '\x1b')
     {
@@ -522,6 +524,49 @@ void TUI_Input_ScrollState_Get(TUI_Window *window, TUI_Input input)
         // NOTE(mattg): we can't know bounds unless we know the line count and we can't be sure at this
         // point yet.
         window->scroll_index++;
+    }
+}
+
+void TUI_Input_ConvertTextTypes(TUI_Input *input)
+{
+    if (input->type == INPUT_TEXT)
+    {
+        switch (input->value)
+        {
+        case ' ':
+            input->type = INPUT_SPACE;
+            break;
+        case 'Q':
+        case 'q':
+            input->type = INPUT_ESC;
+            break;
+        case 'H':
+        case 'h':
+        case 'A':
+        case 'a':
+            input->type = INPUT_LEFT;
+            break;
+        case 'J':
+        case 'j':
+        case 'S':
+        case 's':
+            input->type = INPUT_DOWN;
+            break;
+        case 'K':
+        case 'k':
+        case 'W':
+        case 'w':
+            input->type = INPUT_UP;
+            break;
+        case 'L':
+        case 'l':
+        case 'D':
+        case 'd':
+            input->type = INPUT_RIGHT;
+            break;
+        default:
+            break;
+        }
     }
 }
 

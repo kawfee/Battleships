@@ -12,7 +12,7 @@
 
 #include "lib/battleshipslib.h"
 #include "src/tui/options.cpp"
-#include "src/tui/results.cpp"
+#include "src/tui/human_game.cpp"
 
 // typedef struct {
 //     long cycles;
@@ -199,6 +199,7 @@ int main(void)
     BShip_Arena string_arena = {};
     BShip_Arena_Initialize(&string_arena, 0); // 0 creates default size.
     vector<BShip_AIFileData> ais = GetAIs(&string_arena);
+    TUI_InputType_From_Value_Initialize();
 
     TUI_Options options = {};
     bool should_exit = TUI_Options_Get(&options, ais, debug);
@@ -246,6 +247,10 @@ int main(void)
             options.step_delay_ms, options.manual_stepping, debug);
 
         BShip_Arena_Destroy(&arena);
+    }
+    else if (options.runtime == RUNTIME_HUMAN_GAME)
+    {
+        TUI_HumanGame_Play(socket_path, log_file_path, options.ai2, options.board_size, debug);
     }
     else
     {
