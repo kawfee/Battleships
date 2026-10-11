@@ -1,13 +1,14 @@
 /**
  * @file player_example.h
- * @author Matthew Getgen
+ * @author Matthew Getgen, Luke Staritz
  * @brief The starter file for making your own AI.
- * @date 2022-11-22
- */
+ * @date 2026-05-21
+*/
 
 #ifndef PLAYER_EXAMPLE_H
 #define PLAYER_EXAMPLE_H
 
+#include <fstream>
 #include "protected/Player.h"
 
 using namespace std;
@@ -71,6 +72,11 @@ class PlayerExample: public Player {
         /// This function is called once.
         void handle_match_over();
 
+        /// @brief Loads the settings JSON datastructure from the defined path.
+        void load_settings_from_file();
+
+        /// @brief Example of imported JSON datastructure usage.
+        void example_json();
     private:
 
         // If you want to track other boards, make sure to add them to
@@ -84,6 +90,9 @@ class PlayerExample: public Player {
 
         /// @brief Tracks the number of ships placed so far.
         int num_ships_placed;
+
+        /// @brief Stores imported settings datastructure.
+        nlohmann::json data;
 
         /// @brief Stores the board where you placed ships, and where the opponent has shot.
         char** ship_board;

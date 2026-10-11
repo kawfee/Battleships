@@ -1,8 +1,8 @@
 /**
  * @file example_player_v2.cpp
- * @author Matthew Getgen
+ * @author Matthew Getgen, Luke Staritz
  * @brief The starter C++ file for making your own AI using the new PlayerV2 class!
- * @date 2026-05-29
+ * @date 2026-06-15
  */
 
 #include "example_player_v2.h"
@@ -10,6 +10,8 @@
 #define AI_NAME "Example Player V2 C++"
 
 #define AUTHOR_NAMES "Example Team/Author Name"
+
+#define AI_SETTINGS_FILEPATH "example_player_v2.json"
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
@@ -41,6 +43,8 @@ void ExamplePlayerV2::handle_setup_match(PlayerNum player, int board_size) {
     this->player = player;
     this->board_size = board_size;
     create_boards();
+    load_settings_from_file();
+    example_json();
 }
 
 void ExamplePlayerV2::handle_start_game() {
@@ -149,3 +153,33 @@ void ExamplePlayerV2::delete_boards() {
     delete[] this->shot_board;
 }
 
+void PlayerExample::load_settings_from_file() {
+    std::ifstream file(AI_SETTINGS_FILEPATH);
+    if (!file.is_open()) {
+        std::cout<<"JSON ERROR! fail to parse!";
+        return;
+    }
+    file >> data;
+}
+
+void PlayerExample::example_json() {
+    std::cout << "\n=== Example JSON Access ===\n";
+
+    if (data.contains("introText") && data["introText"].is_string()) {
+        std::cout << "introText: " << data["introText"].get<std::string>();
+    }
+
+    if (data.contains("printText") && data["printText"].is_boolean()) {
+        std::cout << "printText: " << (data["printText"].get<bool>() ? "true" : "false") << "\n";
+    }
+
+    if (data.contains("subsection1") && data["subsection1"].is_object()) {
+        const auto& sub = data["subsection1"];
+
+        double variableA = sub.value("variableA", -1.0);
+        int    variableB = sub.value("variableB", -1);
+
+        std::cout << "subsection1.variableA: " << variableA << "\n";
+        std::cout << "subsection1.variableB: " << variableB << "\n";
+    }
+}
