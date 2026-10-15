@@ -9,6 +9,7 @@
 #include "arena.c"
 
 #define BOARD_SIZE_KEY   "bs"
+#define ELAPSED_TIME_KEY "et"
 #define EVENTS_KEY       "evt"
 #define AI1_KEY          "ai1"
 #define AI2_KEY          "ai2"
@@ -94,6 +95,7 @@ void BShip_Match_Log_Store(BShip_MatchData match, char *path)
     yyjson_mut_doc_set_root(doc, root);
 
     yyjson_mut_obj_add_uint(doc, root, BOARD_SIZE_KEY, match.board_size);
+    yyjson_mut_obj_add_uint(doc, root, ELAPSED_TIME_KEY, match.elapsed_time_ms);
     yyjson_mut_val *ai1 = yyjson_mut_obj_add_obj(doc, root, AI1_KEY);
     yyjson_mut_val *ai2 = yyjson_mut_obj_add_obj(doc, root, AI2_KEY);
 
@@ -410,6 +412,15 @@ bool BShip_Match_Log_Load(BShip_Arena *arena, BShip_MatchData *match, char *path
     {
         PRINT_ERROR_F("Invalid match log stored at %s", path);
         return false;
+    }
+    {
+        yyjson_val *obj = yyjson_obj_get(root, ELAPSED_TIME_KEY);
+        if (!yyjson_is_uint(obj))
+        {
+            PRINT_ERROR_F("Invalid match log stored at %s", path);
+            return false;
+        }
+        match->elapsed_time_ms = yyjson_get_uint(obj);
     }
     {
         yyjson_val *obj = yyjson_obj_get(root, AI1_KEY);

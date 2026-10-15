@@ -26,9 +26,9 @@
 
 #include "platform.h"
 
-#define BSHIP_TIMER_NANOSECONDS_IN_SECOND 1000000000
-#define BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND 1000000
-#define BSHIP_TIMER_MILLISECONDS_IN_SECOND 1000
+#define BSHIP_TIMER_NANOSECONDS_IN_SECOND 1000000000LL
+#define BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND 1000000LL
+#define BSHIP_TIMER_MILLISECONDS_IN_SECOND 1000LL
 
 struct BShip_Timer {
     struct timespec t;
@@ -203,24 +203,32 @@ int BShip_Timer_Compare(BShip_Timer *a, BShip_Timer *b)
     return 1;
 }
 
-uint64_t BShip_Timer_Milliseconds_Until(BShip_Timer *timer)
+int64_t BShip_Timer_Difference_Nanoseconds(BShip_Timer *start, BShip_Timer *end)
+{
+    assert(start != NULL);
+    assert(end != NULL);
+    return (int64_t)(end->t.tv_sec - start->t.tv_sec) * BSHIP_TIMER_NANOSECONDS_IN_SECOND
+         + (int64_t)(end->t.tv_nsec - start->t.tv_nsec);
+}
+
+int64_t BShip_Timer_Difference_Milliseconds(BShip_Timer *start, BShip_Timer *end)
+{
+    return BShip_Timer_Difference_Nanoseconds(start, end) / BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND;
+}
+
+static inline uint64_t BShip_Timer_Milliseconds_Until(BShip_Timer *timer)
 {
     BShip_Timer now = {0};
     if (!BShip_Timer_Now(&now))
     {
         return 0;
     }
-    uint64_t now_ms = (uint64_t)now.t.tv_sec * BSHIP_TIMER_MILLISECONDS_IN_SECOND + (
-        now.t.tv_nsec / BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND
-    );
-    uint64_t timer_ms = (uint64_t)timer->t.tv_sec * BSHIP_TIMER_MILLISECONDS_IN_SECOND + (
-        timer->t.tv_nsec / BSHIP_TIMER_NANOSECONDS_IN_MILLISECOND
-    );
-    if (now_ms >= timer_ms)
+    int64_t difference_ms = BShip_Timer_Difference_Milliseconds(&now, timer);
+    if (difference_ms <= 0)
     {
         return 0;
     }
-    return timer_ms - now_ms;
+    return (uint64_t)difference_ms;
 }
 
 void BShip_Timer_Add_Nanoseconds(BShip_Timer *timer, uint64_t nsec)

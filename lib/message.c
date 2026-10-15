@@ -32,8 +32,48 @@ typedef enum {
     MESSAGE_MATCH_OVER,
 } BShip_MessageType;
 
-BShip_Error BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, char *author_names)
+void *YYJSON_Malloc(void *ctx, size_t size)
 {
+    assert(ctx != NULL);
+    BShip_Arena *arena = (BShip_Arena *)ctx;
+    return BShip_Arena_Push(arena, size);
+}
+
+void *YYJSON_Realloc(void *ctx, void *ptr, size_t old_size, size_t size)
+{
+    assert(ctx != NULL);
+    assert(ptr != NULL);
+    BShip_Arena *arena = (BShip_Arena *)ctx;
+    void *memory = BShip_Arena_Push(arena, size);
+    if (memory != NULL)
+    {
+        memcpy(memory, ptr, old_size);
+    }
+    return memory;
+}
+
+void YYJSON_Free(void *ctx, void *ptr)
+{
+    (void)ctx;
+    (void)ptr;
+    return;
+}
+
+yyjson_alc YYJSON_Alc_From_BShip_Arena(BShip_Arena *arena)
+{
+    yyjson_alc allocator = {
+        .malloc = *YYJSON_Malloc,
+        .realloc = *YYJSON_Realloc,
+        .free = *YYJSON_Free,
+        .ctx = (void *)arena,
+    };
+    return allocator;
+}
+
+BShip_Error BShip_Message_Hello_Parse(BShip_Arena *arena, BShip_Message message,
+    char *ai_name, char *author_names)
+{
+    assert(arena != NULL);
     assert(message.buffer != NULL);
     assert(ai_name != NULL);
     assert(author_names != NULL);
@@ -42,7 +82,9 @@ BShip_Error BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, char
         .type = ERROR_SUCCESS,
     };
 
-    yyjson_doc *doc = yyjson_read(message.buffer, strlen(message.buffer), 0);
+    BShip_ArenaMark mark = BShip_ArenaMark_Get(arena);
+    yyjson_alc alc = YYJSON_Alc_From_BShip_Arena(arena);
+    yyjson_doc *doc = yyjson_read_opts(message.buffer, message.length, 0, &alc, NULL);
     if (doc == NULL) goto on_error;
 
     yyjson_val *root = yyjson_doc_get_root(doc);
@@ -75,25 +117,29 @@ BShip_Error BShip_Message_Hello_Parse(BShip_Message message, char *ai_name, char
         strncpy(author_names, author_names_input, author_names_len);
     }
 
-    yyjson_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
     return error;
 on_error:
     PRINT_ERROR_F("Invalid \"Hello\" message received: <%s>", message.buffer);
-    yyjson_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
     error.type = ERROR_MESSAGE_HELLO_INVALID;
     error.value.message = message;
     return error;
 }
 
-void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size, BShip_PlayerNum player_num)
+void BShip_Message_SetupMatch_Create(BShip_Arena *arena, BShip_Message *message,
+    uint8_t board_size, BShip_PlayerNum player_num)
 {
+    assert(arena != NULL);
     assert(message != NULL);
     assert(message->buffer != NULL);
     assert(board_size >= BSHIP_BOARD_SIZE_MIN);
     assert(board_size <= BSHIP_BOARD_SIZE_MAX);
     memset(message->buffer, 0, BSHIP_MESSAGE_SIZE);
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    BShip_ArenaMark mark = BShip_ArenaMark_Get(arena);
+    yyjson_alc alc = YYJSON_Alc_From_BShip_Arena(arena);
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(&alc);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
 
@@ -102,17 +148,19 @@ void BShip_Message_SetupMatch_Create(BShip_Message *message, uint8_t board_size,
     yyjson_mut_obj_add_int(doc, root, PLAYER_NUM_KEY, player_num);
 
     size_t length = 0;
-    char *json = yyjson_mut_write(doc, 0, &length);
+    char *json = yyjson_mut_write_opts(doc, 0, &alc, &length, NULL);
+    assert(json != NULL);
     assert(length < BSHIP_MESSAGE_SIZE);
 
     strncpy(message->buffer, json, length);
 
-    free(json);
-    yyjson_mut_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
 }
 
-void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengths, uint8_t ship_count)
+void BShip_Message_PlaceShips_Create(BShip_Arena *arena, BShip_Message *message,
+    uint8_t *ship_lengths, uint8_t ship_count)
 {
+    assert(arena != NULL);
     assert(message != NULL);
     assert(message->buffer != NULL);
     assert(ship_lengths != NULL);
@@ -120,7 +168,9 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
     assert(ship_count <= BSHIP_SHIP_COUNT_MAX);
     memset(message->buffer, 0, BSHIP_MESSAGE_SIZE);
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    BShip_ArenaMark mark = BShip_ArenaMark_Get(arena);
+    yyjson_alc alc = YYJSON_Alc_From_BShip_Arena(arena);
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(&alc);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
 
@@ -137,17 +187,19 @@ void BShip_Message_PlaceShips_Create(BShip_Message *message, uint8_t *ship_lengt
     }
 
     size_t length = 0;
-    char *json = yyjson_mut_write(doc, 0, &length);
+    char *json = yyjson_mut_write_opts(doc, 0, &alc, &length, NULL);
+    assert(json != NULL);
     assert(length < BSHIP_MESSAGE_SIZE);
 
     strncpy(message->buffer, json, length);
 
-    free(json);
-    yyjson_mut_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
 }
 
-BShip_Error BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_ShipArray *ships, uint8_t ship_count)
+BShip_Error BShip_Message_ShipsPlaced_Parse(BShip_Arena *arena, BShip_Message message,
+    BShip_ShipArray *ships, uint8_t ship_count)
 {
+    assert(arena != NULL);
     assert(message.buffer != NULL);
     assert(ships != NULL);
     assert(ships->buffer != NULL);
@@ -159,7 +211,9 @@ BShip_Error BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_ShipArr
         .type = ERROR_SUCCESS,
     };
 
-    yyjson_doc *doc = yyjson_read(message.buffer, strlen(message.buffer), 0);
+    BShip_ArenaMark mark = BShip_ArenaMark_Get(arena);
+    yyjson_alc alc = YYJSON_Alc_From_BShip_Arena(arena);
+    yyjson_doc *doc = yyjson_read_opts(message.buffer, message.length, 0, &alc, NULL);
     if (doc == NULL) goto on_error;
 
     yyjson_val *root = yyjson_doc_get_root(doc);
@@ -202,18 +256,19 @@ BShip_Error BShip_Message_ShipsPlaced_Parse(BShip_Message message, BShip_ShipArr
         ships->buffer[ships->length] = ship;
     }
 
-    yyjson_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
     return error;
 on_error:
     PRINT_ERROR_F("Invalid \"Ships Placed\" message received: <%s>", message.buffer);
-    yyjson_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
     error.type = ERROR_MESSAGE_SHIPS_PLACED_INVALID;
     error.value.message = message;
     return error;
 }
 
-BShip_Error BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot *shot)
+BShip_Error BShip_Message_ShotTaken_Parse(BShip_Arena *arena, BShip_Message message, BShip_Shot *shot)
 {
+    assert(arena != NULL);
     assert(message.buffer != NULL);
     assert(shot != NULL);
 
@@ -221,7 +276,9 @@ BShip_Error BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot *sho
         .type = ERROR_SUCCESS,
     };
 
-    yyjson_doc *doc = yyjson_read(message.buffer, strlen(message.buffer), 0);
+    BShip_ArenaMark mark = BShip_ArenaMark_Get(arena);
+    yyjson_alc alc = YYJSON_Alc_From_BShip_Arena(arena);
+    yyjson_doc *doc = yyjson_read_opts(message.buffer, message.length, 0, &alc, NULL);
     if (doc == NULL) goto on_error;
 
     yyjson_val *root = yyjson_doc_get_root(doc);
@@ -248,24 +305,27 @@ BShip_Error BShip_Message_ShotTaken_Parse(BShip_Message message, BShip_Shot *sho
         shot->column = column;
     }
 
-    yyjson_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
     return error;
 on_error:
     PRINT_ERROR_F("Invalid \"Shot Taken\" message received: <%s>", message.buffer);
-    yyjson_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
     error.type = ERROR_MESSAGE_SHOT_TAKEN_INVALID;
     error.value.message = message;
     return error;
 }
 
-void BShip_Message_ShotResult_Create(BShip_Message *message, BShip_Shot shot1, BShip_Shot shot2,
-        BShip_Ship *ai1_ship_killed, BShip_Ship *ai2_ship_killed, bool next_shot)
+void BShip_Message_ShotResult_Create(BShip_Arena *arena, BShip_Message *message,
+    BShip_Shot shot1, BShip_Shot shot2, BShip_Ship *ai1_ship_killed, BShip_Ship *ai2_ship_killed, bool next_shot)
 {
+    assert(arena != NULL);
     assert(message != NULL);
     assert(message->buffer != NULL);
     memset(message->buffer, 0, BSHIP_MESSAGE_SIZE);
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    BShip_ArenaMark mark = BShip_ArenaMark_Get(arena);
+    yyjson_alc alc = YYJSON_Alc_From_BShip_Arena(arena);
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(&alc);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
 
@@ -314,34 +374,37 @@ void BShip_Message_ShotResult_Create(BShip_Message *message, BShip_Shot shot1, B
     yyjson_mut_obj_add_bool(doc, root, NEXT_SHOT_KEY, next_shot);
 
     size_t length = 0;
-    char *json = yyjson_mut_write(doc, 0, &length);
+    char *json = yyjson_mut_write_opts(doc, 0, &alc, &length, NULL);
+    assert(json != NULL);
     assert(length <= BSHIP_MESSAGE_SIZE);
 
     strncpy(message->buffer, json, length);
 
-    free(json);
-    yyjson_mut_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
 }
 
-void BShip_Message_MatchOver_Create(BShip_Message *message)
+void BShip_Message_MatchOver_Create(BShip_Arena *arena, BShip_Message *message)
 {
+    assert(arena != NULL);
     assert(message != NULL);
     assert(message->buffer != NULL);
     memset(message->buffer, 0, BSHIP_MESSAGE_SIZE);
 
-    yyjson_mut_doc *doc = yyjson_mut_doc_new(NULL);
+    BShip_ArenaMark mark = BShip_ArenaMark_Get(arena);
+    yyjson_alc alc = YYJSON_Alc_From_BShip_Arena(arena);
+    yyjson_mut_doc *doc = yyjson_mut_doc_new(&alc);
     yyjson_mut_val *root = yyjson_mut_obj(doc);
     yyjson_mut_doc_set_root(doc, root);
 
     yyjson_mut_obj_add_int(doc, root, MESSAGE_TYPE_KEY, MESSAGE_MATCH_OVER);
 
     size_t length = 0;
-    char *json = yyjson_mut_write(doc, 0, &length);
+    char *json = yyjson_mut_write_opts(doc, 0, &alc, &length, NULL);
+    assert(json != NULL);
     assert(length <= BSHIP_MESSAGE_SIZE);
 
     strncpy(message->buffer, json, length);
 
-    free(json);
-    yyjson_mut_doc_free(doc);
+    BShip_Arena_Rollback(arena, mark);
 }
 

@@ -99,6 +99,8 @@ typedef struct {
 struct BShip_MatchState {
     AIMatchState ai1;
     AIMatchState ai2;
+    BShip_Timer *start_timer;
+    BShip_Timer *end_timer;
     uint32_t shot_counter;
     uint32_t game_shot_count_max;
     GameStateType game_state;
@@ -272,8 +274,8 @@ void MatchState_PlaceShips(BShip_MatchData *match)
     };
     BShip_EventArray_Push(&match->events, game_start_event);
 
-    BShip_Message_PlaceShips_Create(&match->state->ai1.message, match->state->ai1.ship_lengths.buffer,
-        match->state->ai1.ship_lengths.length);
+    BShip_Message_PlaceShips_Create(&match->temp_arena, &match->state->ai1.message,
+        match->state->ai1.ship_lengths.buffer, match->state->ai1.ship_lengths.length);
 
     if (MatchState_SendMessages(match, true))
     {
@@ -292,10 +294,10 @@ void MatchState_AcceptShips(BShip_MatchData *match)
         goto on_error;
     }
 
-    match->ai1.error = BShip_Message_ShipsPlaced_Parse(match->state->ai1.message, &match->state->ai1.ships,
-        match->state->ai1.ship_lengths.length);
-    match->ai2.error = BShip_Message_ShipsPlaced_Parse(match->state->ai2.message, &match->state->ai2.ships,
-        match->state->ai2.ship_lengths.length);
+    match->ai1.error = BShip_Message_ShipsPlaced_Parse(&match->temp_arena, match->state->ai1.message,
+        &match->state->ai1.ships, match->state->ai1.ship_lengths.length);
+    match->ai2.error = BShip_Message_ShipsPlaced_Parse(&match->temp_arena, match->state->ai2.message,
+        &match->state->ai2.ships, match->state->ai2.ship_lengths.length);
     if (HasErrored(match))
     {
         goto on_error;
@@ -350,8 +352,8 @@ void MatchState_AcceptShot(BShip_MatchData *match)
     }
 
     BShip_Shot ai1_shot = {0}, ai2_shot = {0};
-    match->ai1.error = BShip_Message_ShotTaken_Parse(match->state->ai1.message, &ai1_shot);
-    match->ai2.error = BShip_Message_ShotTaken_Parse(match->state->ai2.message, &ai2_shot);
+    match->ai1.error = BShip_Message_ShotTaken_Parse(&match->temp_arena, match->state->ai1.message, &ai1_shot);
+    match->ai2.error = BShip_Message_ShotTaken_Parse(&match->temp_arena, match->state->ai2.message, &ai2_shot);
     if (HasErrored(match))
     {
         goto on_error;
@@ -397,7 +399,7 @@ void MatchState_AcceptShot(BShip_MatchData *match)
         match->state->next_shot = false;
     }
 
-    BShip_Message_ShotResult_Create(&match->state->ai1.message, ai1_shot, ai2_shot,
+    BShip_Message_ShotResult_Create(&match->temp_arena, &match->state->ai1.message, ai1_shot, ai2_shot,
         ai1_dead_ship, ai2_dead_ship, match->state->next_shot);
     if (MatchState_SendMessages(match, true))
     {
@@ -506,7 +508,7 @@ BShip_MatchData BShip_Match_Initialize(BShip_Arena *arena,
 
     match.board_size = board_size;
     match.game_count = game_count;
-    BShip_Arena_Initialize(&match.temp_arena, 0);
+    BShip_Arena_Initialize(&match.temp_arena, BSHIP_ARENA_BLOCK_SIZE_DEFAULT * 2);
     match.state = BShip_Arena_Push(&match.temp_arena, sizeof(BShip_MatchState));
     if (match.state == NULL)
     {
@@ -526,6 +528,12 @@ BShip_MatchData BShip_Match_Initialize(BShip_Arena *arena,
     }
 
     // initialize all temp values
+    match.state->start_timer = BShip_Arena_Push(&match.temp_arena, BShip_Timer_GetSize());
+    match.state->end_timer = BShip_Arena_Push(&match.temp_arena, BShip_Timer_GetSize());
+    if (match.state->start_timer == NULL || match.state->end_timer == NULL)
+    {
+        goto on_error;
+    }
     if (!AIMatchState_PushTempValues(&match.temp_arena, &match.state->ai1, match.board_size) ||
         !AIMatchState_PushTempValues(&match.temp_arena, &match.state->ai2, match.board_size))
     {
@@ -544,6 +552,10 @@ on_error:
 void BShip_Match_Start(BShip_MatchData *match, BShip_Connection *conn, char *socket_path)
 {
     if (match == NULL || match->state == NULL || conn == NULL || socket_path == NULL)
+    {
+        goto on_error;
+    }
+    if (!BShip_Timer_Now(match->state->start_timer))
     {
         goto on_error;
     }
@@ -587,9 +599,9 @@ void BShip_Match_Start(BShip_MatchData *match, BShip_Connection *conn, char *soc
         goto on_error;
     }
 
-    match->ai1.error = BShip_Message_Hello_Parse(match->state->ai1.message,
+    match->ai1.error = BShip_Message_Hello_Parse(&match->temp_arena, match->state->ai1.message,
         match->ai1.name, match->ai1.authors);
-    match->ai2.error = BShip_Message_Hello_Parse(match->state->ai2.message,
+    match->ai2.error = BShip_Message_Hello_Parse(&match->temp_arena, match->state->ai2.message,
         match->ai2.name, match->ai2.authors);
     if (HasErrored(match))
     {
@@ -600,8 +612,10 @@ void BShip_Match_Start(BShip_MatchData *match, BShip_Connection *conn, char *soc
     match->ai2.ai_name_length = strnlen(match->ai2.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
     match->ai2.author_name_length = strnlen(match->ai2.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
 
-    BShip_Message_SetupMatch_Create(&match->state->ai1.message, match->board_size, BSHIP_PLAYER_1);
-    BShip_Message_SetupMatch_Create(&match->state->ai2.message, match->board_size, BSHIP_PLAYER_2);
+    BShip_Message_SetupMatch_Create(&match->temp_arena, &match->state->ai1.message,
+        match->board_size, BSHIP_PLAYER_1);
+    BShip_Message_SetupMatch_Create(&match->temp_arena, &match->state->ai2.message,
+        match->board_size, BSHIP_PLAYER_2);
 
     if (MatchState_SendMessages(match, false))
     {
@@ -675,7 +689,7 @@ void BShip_Match_Stop(BShip_MatchData *match, BShip_Arena *arena)
     };
     if (message.buffer != NULL)
     {
-        BShip_Message_MatchOver_Create(&message);
+        BShip_Message_MatchOver_Create(&match->temp_arena, &message);
 
         if (match->ai1.error.type == ERROR_SUCCESS)
         {
@@ -701,6 +715,11 @@ void BShip_Match_Stop(BShip_MatchData *match, BShip_Arena *arena)
         BShip_AIConnection_KillProcess(match->state->ai2.conn);
     }
 
+    if (BShip_Timer_Now(match->state->end_timer))
+    {
+        match->elapsed_time_ms = BShip_Timer_Difference_Milliseconds(match->state->start_timer, match->state->end_timer);
+    }
+
     BShip_Arena_Destroy(&match->temp_arena);
 }
 
@@ -721,7 +740,7 @@ BShip_MatchData BShip_HumanGame_Initialize(BShip_Arena *arena, BShip_AIFileData 
 
     match.board_size = board_size;
     match.game_count = BShip_GameCountMin_From_BoardSize(board_size);
-    BShip_Arena_Initialize(&match.temp_arena, 0);
+    BShip_Arena_Initialize(&match.temp_arena, BSHIP_ARENA_BLOCK_SIZE_DEFAULT * 2);
     match.state = BShip_Arena_Push(&match.temp_arena, sizeof(BShip_MatchState));
     if (match.state == NULL)
     {
@@ -797,7 +816,7 @@ void BShip_HumanGame_Start(BShip_MatchData *match, BShip_Connection *conn, char 
             authors_length < BSHIP_MESSAGE_NAME_SIZE_MAX ? authors_length : BSHIP_MESSAGE_NAME_SIZE_MAX);
     }
 
-    match->ai2.error = BShip_Message_Hello_Parse(match->state->ai2.message,
+    match->ai2.error = BShip_Message_Hello_Parse(&match->temp_arena, match->state->ai2.message,
         match->ai2.name, match->ai2.authors);
     if (HasErrored(match))
     {
@@ -808,7 +827,8 @@ void BShip_HumanGame_Start(BShip_MatchData *match, BShip_Connection *conn, char 
     match->ai2.ai_name_length = strnlen(match->ai2.name, BSHIP_MESSAGE_NAME_SIZE_MAX);
     match->ai2.author_name_length = strnlen(match->ai2.authors, BSHIP_MESSAGE_NAME_SIZE_MAX);
 
-    BShip_Message_SetupMatch_Create(&match->state->ai2.message, match->board_size, BSHIP_PLAYER_2);
+    BShip_Message_SetupMatch_Create(&match->temp_arena, &match->state->ai2.message,
+        match->board_size, BSHIP_PLAYER_2);
 
     match->ai2.error.type = BShip_AIConnection_Send(match->state->ai2.conn, match->state->ai2.message,
         match->state->ai2.deadline, match->state->debug);
@@ -849,8 +869,8 @@ void BShip_HumanGame_Start(BShip_MatchData *match, BShip_Connection *conn, char 
     };
     BShip_EventArray_Push(&match->events, game_start_event);
 
-    BShip_Message_PlaceShips_Create(&match->state->ai2.message, match->state->ai2.ship_lengths.buffer,
-        match->state->ai2.ship_lengths.length);
+    BShip_Message_PlaceShips_Create(&match->temp_arena, &match->state->ai2.message,
+        match->state->ai2.ship_lengths.buffer, match->state->ai2.ship_lengths.length);
 
     match->ai2.error.type = BShip_AIConnection_Send(match->state->ai2.conn, match->state->ai2.message,
         match->state->ai2.deadline, match->state->debug);
@@ -917,8 +937,8 @@ bool BShip_HumanGame_PlaceShips(BShip_MatchData *match, BShip_ShipArray ships)
     }
     memcpy(match->state->ai1.ships.buffer, ships.buffer, sizeof(BShip_Ship) * ships.length);
     match->state->ai1.ships.length = ships.length;
-    match->ai2.error = BShip_Message_ShipsPlaced_Parse(match->state->ai2.message, &match->state->ai2.ships,
-        match->state->ai2.ship_lengths.length);
+    match->ai2.error = BShip_Message_ShipsPlaced_Parse(&match->temp_arena, match->state->ai2.message,
+        &match->state->ai2.ships, match->state->ai2.ship_lengths.length);
     if (HasErrored(match))
     {
         goto on_error;
@@ -971,7 +991,7 @@ bool BShip_HumanGame_PlaceShot(BShip_MatchData *match, BShip_Shot shot)
     }
 
     BShip_Shot ai1_shot = shot, ai2_shot = {0};
-    match->ai2.error = BShip_Message_ShotTaken_Parse(match->state->ai2.message, &ai2_shot);
+    match->ai2.error = BShip_Message_ShotTaken_Parse(&match->temp_arena, match->state->ai2.message, &ai2_shot);
     if (HasErrored(match))
     {
         goto on_error;
@@ -1017,7 +1037,7 @@ bool BShip_HumanGame_PlaceShot(BShip_MatchData *match, BShip_Shot shot)
         match->state->next_shot = false;
     }
 
-    BShip_Message_ShotResult_Create(&match->state->ai2.message, ai1_shot, ai2_shot,
+    BShip_Message_ShotResult_Create(&match->temp_arena, &match->state->ai2.message, ai1_shot, ai2_shot,
         ai1_dead_ship, ai2_dead_ship, match->state->next_shot);
     match->ai2.error.type = BShip_AIConnection_Send(match->state->ai2.conn, match->state->ai2.message,
         match->state->ai2.deadline, match->state->debug);
@@ -1068,7 +1088,7 @@ bool BShip_HumanGame_Stop(BShip_MatchData *match, BShip_Arena *arena)
     };
     if (message.buffer != NULL)
     {
-        BShip_Message_MatchOver_Create(&message);
+        BShip_Message_MatchOver_Create(&match->temp_arena, &message);
         if (match->ai2.error.type == ERROR_SUCCESS)
         {
             BShip_AIConnection_Send(match->state->ai2.conn, message, match->state->ai2.deadline,

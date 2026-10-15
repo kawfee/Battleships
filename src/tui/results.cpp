@@ -1559,6 +1559,20 @@ void TUI_Match_Display(BShip_MatchData match, TUI_MatchDisplayType type,
         if (state.game_stepping_over)
         {
             TUI_MatchStats_Display(&window, match.ai1.name, match.ai2.name, stats);
+
+            TUI_Window_Add(&window, TUI_Line_Default(TUI_TextGroup_Default(TUI_Text_Default(""))));
+            TUI_TextGroup elapsed_group = TUI_TextGroup_Default(TUI_Text_Default("Elapsed time: "));
+            string elapsed_time_str = "";
+            if (match.elapsed_time_ms >= 1000)
+            {
+                elapsed_time_str = String_From_Float((float)match.elapsed_time_ms / 1000.0f) + " s";
+            }
+            else
+            {
+                elapsed_time_str = String_From_Float((float)match.elapsed_time_ms) + " ms";
+            }
+            TUI_TextGroup_Add(&elapsed_group, TUI_Text_New(elapsed_time_str, { BOLD }, RESET, RESET));
+            TUI_Window_Add(&window, TUI_Line_Default(elapsed_group));
         }
 
         TUI_Window_Print(&window);

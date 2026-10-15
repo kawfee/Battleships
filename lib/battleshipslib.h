@@ -241,6 +241,7 @@ typedef struct {
     BShip_AIMatchData ai2;
     BShip_U32Array game_indexes;
     BShip_EventArray events;
+    uint64_t elapsed_time_ms;
     uint32_t game_count;
     uint8_t board_size;
 } BShip_MatchData;

@@ -35,6 +35,10 @@ bool BShip_Timer_Now(BShip_Timer *timer);
 
 int BShip_Timer_Compare(BShip_Timer *a, BShip_Timer *b);
 
+int64_t BShip_Timer_Difference_Nanoseconds(BShip_Timer *start, BShip_Timer *end);
+
+int64_t BShip_Timer_Difference_Milliseconds(BShip_Timer *start, BShip_Timer *end);
+
 void BShip_Timer_Add_Nanoseconds(BShip_Timer *timer, uint64_t nsec);
 
 void BShip_Timer_Add_Milliseconds(BShip_Timer *timer, uint64_t msec);

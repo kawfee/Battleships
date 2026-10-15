@@ -111,9 +111,11 @@ bool TUI_RuntimeType_Input(TUI_OptionsState *state, TUI_Options *options, TUI_In
     {
     case INPUT_UP:
         if (state->runtime_selection > 0) state->runtime_selection--;
+        else state->runtime_selection = TUI_ARRAY_LENGTH(RuntimeTypeTable)-1;
         break;
     case INPUT_DOWN:
         if (state->runtime_selection < TUI_ARRAY_LENGTH(RuntimeTypeTable)-1) state->runtime_selection++;
+        else state->runtime_selection = 0;
         break;
     case INPUT_ENTER:
         state->runtime = RuntimeTypeTable[state->runtime_selection];
@@ -406,9 +408,11 @@ bool TUI_MatchPlayer_Input(TUI_OptionsState *state, TUI_Options *options, TUI_In
     {
     case INPUT_UP:
         if (*ai_selection_ref > 0) (*ai_selection_ref)--;
+        else *ai_selection_ref = ais.size()-1;
         break;
     case INPUT_DOWN:
         if (*ai_selection_ref < ais.size()-1) (*ai_selection_ref)++;
+        else *ai_selection_ref = 0;
         break;
     case INPUT_ENTER:
         if (player == BSHIP_PLAYER_1)
@@ -480,10 +484,12 @@ bool TUI_MatchDisplayType_Input(TUI_OptionsState *state, TUI_Options *options, T
     {
     case INPUT_UP:
         if (state->match_display_type_selection > 0) state->match_display_type_selection--;
+        else state->match_display_type_selection = TUI_ARRAY_LENGTH(MatchDisplayTypeTable)-1;
         break;
     case INPUT_DOWN:
         if (state->match_display_type_selection < TUI_ARRAY_LENGTH(MatchDisplayTypeTable)-1)
             state->match_display_type_selection++;
+        else state->match_display_type_selection = 0;
         break;
     case INPUT_ENTER:
         state->match_display_type = MatchDisplayTypeTable[state->match_display_type_selection];
