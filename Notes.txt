@@ -1,0 +1,57 @@
+--------------------
+From Matt Getgen (2025-09-25)
+--------------------
+Hey all, progress has been a little slow lately, but I’ve been working on improving the runtime. I made the match API “re-entrant”, which makes it more complicated and requires more intense state management, but it has benefits. The previous API used to look like this:
+Match_Run() // does everythingBut the new API looks like this:
+Match_Initialize() // initialize memory
+Match_Start() // create socket, start up API process, read player names, etc.
+Match_ShouldContinue() // check internal state to see if match is over or not
+Match_Continue() // do next step in match
+Match_End() // send match over message, close connections, wait for AI processes to exit
+
+Doing it this way means that multiple matches could run simultaneously without needing to multithread it, which means contests can get much faster. After seeing the API in this shape I realized that the whole “human plays an AI” problem is much easier to solve. A ship or shot placement can be a parameter passed into a “continue”-like step. It's a lot better of a solution than what I had before. I’m still working on the UI, but when I have something to show I will show it soon.
+
+Usage for the API above would look like this:
+Match_Initialize()
+Match_Start()
+while (Match_ShouldContinue()):
+    Match_Continue()
+Match_End()
+
+
+I'm testing out different ways to display a ship. Do we like the new option which shows where a ship starts/stops over the SSS approach? Here's horizontal and vertical:
+2 attachments mattgetgen  [10:05 PM]
+Another idea would be to fill the body of the ship with # to keep it consistent:2 attachments
+
+--------------------
+From Matt Getgen (2026-10-15)
+--------------------
+With this new system, I've made things slightly more complicated for COS 121 students. Not much, but slightly. Before, all a student needed to worry about was a .cpp and .h file. Since then, I've move each AI into a separate directory, and now each AI gets their own Makefile. The Makefile gives students the flexibility to compile their AIs any way they'd like. Before there was one Makefile which compiled all student's AIs using the same settings. Now that we can write AIs in multiple languages (python, nodejs, go, rust, zig, etc.), each one has a separate build system with different needs. It felt obvious that we would use a different Makefile per AI in this case. A nodejs AI may need to npm install for example.
+
+I realize I never asked you if this was okay. It felt necessary in the moment to allow each team a separate Makefile. Ideally a COS121 student would never need to touch it. But, now that I'm considering supporting Windows (which I know COS121 won't use), a Makefile isn't enough. Make doesn't work on Windows, so I'd need to make something like a build.sh for linux/mac, and a build.bat for Windows. Before a student had zero build scripts to even think about, now they have to think about two of them. Is this too much for a COS121 student? Should I make it simpler?
+mattgetgen  [6:03 PM]
+In general I think of two different type of people who will work with Battleships. There are COS121 students (and maybe students for other classes) and enthusiasts. When I took the class there were three requirements for the battleships AI:
+
+Needs to use C++ and OOP
+Needs to run on Linux
+Needs to compile using certain compiler flags
+
+
+Before, we had one Makefile that compiled every AI. Now, a student could modify their Makefile and make the flags less restrictive. As long as a grader ensures the AI passes compilation with certain flags, it should be fine, but what do you think about this? One option could be that we separate the literal files. We can have as apart of the directory structure:
+
+/ai
+   /cos121 -- where students write their AIs (and where you will run them for the final contest)
+      /students_ai_directory -- the directory (gzipped or something) that the student will submit.
+         student_ai.cpp
+         studetn_ai.h
+
+      Makefile -- one makefile which compiles all AIs and restricts how they build it, so it matches their requirements.
+
+   /exotic -- where students who don't need to follow cos121 rules put their AI code, each with their own build system.
+      /exotic_ai_directory
+         exotic_ai.js
+         /node_modules
+         Makefile (or build.sh and build.bat)
+
+
+This makes it so that it's simple for students to follow assignment requirements and enthusiasts can worry about how their AI is uniquely built across different operating systems, etc. (edited)
